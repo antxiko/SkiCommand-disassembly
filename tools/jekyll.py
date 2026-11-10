@@ -25,7 +25,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from estilo_web import ESTILO                                          # noqa: E402
-from contenido_web import NOMBRE, ANIO, PIE_LEGAL, PAGINAS, VIEJAS     # noqa: E402
+from contenido_web import NOMBRE, EDITOR, ANIO, PIE_LEGAL, PAGINAS, VIEJAS     # noqa: E402
 
 CONFIG = """# Lo escribe tools/jekyll.py: no se toca a mano.
 markdown: kramdown
@@ -79,7 +79,7 @@ def plantilla(idioma):
                 'English</a>')
     return ('<meta charset="utf-8">\n'
             '<meta name="viewport" content="width=device-width,initial-scale=1">\n'
-            f'<title>{{{{ page.title }}}} — {NOMBRE} (Konami, {ANIO})</title>\n'
+            f'<title>{{{{ page.title }}}} — {NOMBRE} ({EDITOR}, {ANIO})</title>\n'
             f'<style>{ESTILO}</style>\n'
             f'<div class="w"><nav class="top">{nav}</nav>\n'
             '{{ content }}\n'

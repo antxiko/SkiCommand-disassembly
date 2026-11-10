@@ -17,14 +17,14 @@
 #
 # EL JUEGO: un comando baja esquiando una pista vista desde atras, con la
 # pista en perspectiva (casillas que se redibujan) y los arboles, las rocas,
-# los esquiadores enemigos y la moto de nieve en sprites o en casillas. El
+# los esquiadores enemigos y un aparato volador en sprites o en casillas. El
 # boton 1 dispara y el 2 salta. Cada ronda dura unos 14 x 256 cuadros; al
 # acabar, PATTERN CLEAR y la siguiente.
 #
 # LA RAM, lo que se lee en el listado:
 #   0xE000-0xE7FF  trabajo: dibujos que se giran o se copian antes de ir a la VRAM
 #   0xE800-0xE87F  la tabla de sprites (32 x 4: Y, X, dibujo, color), copiada a 0x1B00 en cada cuadro
-#   0xE800 el esquiador (3 sprites)  0xE810 el disparo  0xE814 los sprites de la moto o de lo que salta
+#   0xE800 el esquiador (3 sprites)  0xE810 el disparo  0xE814 los sprites del aparato o de lo que salta
 #   0xE82C los cuatro enemigos (3 sprites cada uno)  0xE860 el objeto que cae (Y, X, dibujo, color)
 #   0xE880 la interrupcion ya esta corriendo  0xE881/0xE882 el contador de cuadros (16 bits;
 #          0xE882 sube cada 256 cuadros y es el tramo de la ronda)
@@ -37,12 +37,12 @@
 #   0xE89D la direccion (bit 0 derecha, 1 arriba, 2 izquierda, 3 abajo)
 #   0xE89E los botones (bit 0 disparo, bit 1 salto)  0xE89F el disparo ya pulsado
 #   0xE8A0 la Y del esquiador  0xE8A1 su X  0xE8A2 su dibujo  0xE8A3 esta saltando
-#   0xE8A4 el salto ya pulsado  0xE8A5 el disparo va a la moto  0xE8A7 la curva que viene
+#   0xE8A4 el salto ya pulsado  0xE8A5 el disparo va al aparato  0xE8A7 la curva que viene
 #   (bit 7 a la izquierda, el resto la cuenta)  0xE8A8 la curva: -1, 0 o 1
-#   0xE8A9 el azar  0xE8AA la moto esta tocada  0xE8AB toca enemigo especial
+#   0xE8A9 el azar  0xE8AA el aparato esta tocado  0xE8AB toca enemigo especial
 #   0xE8AC-0xE8AE las tres dianas de la presentacion  0xE8B0 diez objetos de la pista (4 bytes:
 #   la direccion en la tabla de nombres, el tipo y el paso)  0xE8D8 el arbol que lleva el enemigo
-#   0xE8DA la moto (Y, X, paso, tipo)  0xE8DE cuantos enemigos hay
+#   0xE8DA el aparato (Y, X, paso, tipo)  0xE8DE cuantos enemigos hay
 #   0xE8E2 cuatro enemigos (Y, X, paso, tipo)  0xE8F6 el 1UP encendido o apagado
 #   0xE8F8 hay disparo  0xE8F9 la ronda se ha acabado  0xE8FA con que ha chocado el esquiador
 #   0xE8FC el paso de lado de un enemigo  0xE8FD la columna de la pista (0-0x1E: las curvas)
@@ -237,7 +237,7 @@ D 0x8465 0x8478 sprites_esquiador  Los tres sprites del esquiador al empezar (Y 
 F 0x8465 4
 D 0x8478 0x84A4 sprites_bonus  Los once sprites del bonus: el esquiador, el disparo y las tres dianas (Y, X, dibujo, color)
 F 0x8478 4
-D 0x84A4 0x84BC dificultad  Seis dificultades (4 bytes): 0xE8FE 0 si sale la moto, 0xE8FF el paso de los enemigos, 0xE900 el de lo que cae (0xFF: nada), 0xE901 la mascara de cuadros de la pista (15 o 7)
+D 0x84A4 0x84BC dificultad  Seis dificultades (4 bytes): 0xE8FE 0 si sale el aparato, 0xE8FF el paso de los enemigos, 0xE900 el de lo que cae (0xFF: nada), 0xE901 la mascara de cuadros de la pista (15 o 7)
 F 0x84A4 4
 D 0x84BC 0x8544 carteles  Los seis carteles de la presentacion: direccion en la tabla de nombres, longitud y letras (CASIO y SKI COMMAND en letras grandes, PUSH TRIGGER 1 TO START GAME, COPYRIGHT 1984 @ CASIO)
 F 0x84BC 3,12,3,12,3,22,3,22,3,28,3,22
@@ -260,7 +260,7 @@ C 0x8582 el esquiador: mando, salto y sus sprites
 C 0x8585 el disparo
 C 0x8588 los choques del esquiador
 C 0x858B la ronda: el fin, la musica, las curvas y los objetos nuevos
-C 0x858E la moto
+C 0x858E el aparato
 C 0x8591 los enemigos
 L 0x8594 irq_fin                   El marcador, los contadores y la vuelta a la BIOS
 B 0x8599 La interrupcion del bonus (0xFDA0 = 0x8599): el esquiador hace su recorrido y dispara a las tres dianas.
@@ -337,7 +337,7 @@ C 0x86AA la cuenta de la musica ha acabado?
 C 0x86B0 el tramo de la ronda...
 C 0x86B3 ...antes del 12: la ronda sigue
 C 0x86B7 del 12 al 13, sin curvas
-C 0x86BB del 14 en adelante: sin moto...
+C 0x86BB del 14 en adelante: sin aparato...
 C 0x86C2 ...ni enemigos...
 C 0x86C8 ...la ronda se acaba
 L 0x86CC ronda_recta               Al final de la ronda la pista se pone recta: columna 3 y la curva acabada
@@ -408,7 +408,7 @@ C 0x8862 los dos primeros cuadros, nada
 C 0x8865 el segundo: el dibujo del salto...
 C 0x886E ...y la sombra pequena
 L 0x8874 salto_sube                Del 2 al 34: sube
-C 0x8878 en el 27, la sombra mas pequena
+C 0x8878 en el 27, la sombra mas pequeno
 L 0x8881 salto_sube_paso           Un punto arriba
 L 0x8889 salto_baja                Del 43 al 74: baja
 C 0x8890 en el 51, la sombra mediana
@@ -459,19 +459,19 @@ L 0x8A24 choques_nieve             0x99-0x9E: nieve, sin choque
 L 0x8A2C choques_casilla           0x00-0x02, la pista; otra cosa, choque
 L 0x8A30 choque                    Choque: con que (0xE8FA)
 L 0x8A34 choques_cae               Lo que cae (0xE860), a menos de 8 en Y y en X: choque
-B 0x8A4F La moto de nieve: sale de vez en cuando, baja hacia el esquiador y explota cuando la tocan.
-L 0x8A4F moto                      La moto de este cuadro
+B 0x8A4F El aparato volador (por la forma, un helicoptero; el juego no lo nombra): sale de vez en cuando, se acerca volando hacia el esquiador, suelta cosas y explota cuando lo tocan.
+L 0x8A4F aparato                      El aparato de este cuadro
 C 0x8A4F tocada?
 C 0x8A55 cada ocho cuadros...
-C 0x8A5E fuera los sprites de la moto
+C 0x8A5E fuera los sprites del aparato
 C 0x8A69 la explosion sube un punto...
 C 0x8A6F ...hasta la Y 0x30...
-C 0x8A74 ...y entonces la moto se va
+C 0x8A74 ...y entonces el aparato se va
 C 0x8A80 la explosion: dos sprites en su sitio
-L 0x8AA2 moto_marcha               En marcha
-L 0x8AA5 moto_fin                  Y lo que cae
-L 0x8AA8 moto_mueve                Mueve la moto cada ocho cuadros: hacia la X del esquiador, y sube
-C 0x8AB8 no hay moto?
+L 0x8AA2 aparato_marcha               En marcha
+L 0x8AA5 aparato_fin                  Y lo que cae
+L 0x8AA8 aparato_mueve                Mueve el aparato cada ocho cuadros: hacia la X del esquiador, y sube
+C 0x8AB8 no hay aparato?
 C 0x8ABC fuera sus sprites
 C 0x8ABF hacia la X del esquiador...
 C 0x8AC5 ...a la izquierda o a la derecha
@@ -479,43 +479,43 @@ C 0x8ACD dos puntos arriba
 C 0x8ACF el dibujo, segun la Y
 C 0x8AD4 por arriba de la pantalla: se va...
 C 0x8AE0 ...con su sonido
-L 0x8AE4 moto_dibujo               Cuanto mas lejos, mas pequena: cuatro tamanos y mas lenta
-L 0x8AF6 moto_guarda               Guarda la moto
-L 0x8AFB moto_sale                 Una moto nueva: si la ronda la tiene, una vez de cada 16
-C 0x8AFB esta ronda tiene moto?
-C 0x8B06 la moto sale por el centro (0x8BCF)...
+L 0x8AE4 aparato_dibujo               Cuanto mas lejos, mas pequeno: cuatro tamanos y mas lenta
+L 0x8AF6 aparato_guarda               Guardal aparato
+L 0x8AFB aparato_sale                 Un aparato nuevo: si la ronda la tiene, una vez de cada 16
+C 0x8AFB esta ronda tiene aparato?
+C 0x8B06 el aparato sale por el centro (0x8BCF)...
 C 0x8B0F ...o por un lado, segun la curva...
 C 0x8B15 ...(0x8BD3 o 0x8BD7)
-L 0x8B18 moto_sale_pon             Su Y, su X y su paso
-L 0x8B20 moto_sale_tipo            El tipo, al azar de 1 a 3 (0x8BDB)
+L 0x8B18 aparato_sale_pon             Su Y, su X y su paso
+L 0x8B20 aparato_sale_color           Su color, uno de tres al azar (0x8BDB)
 C 0x8B31 su sonido
-L 0x8B34 moto_sprites              Los sprites de la moto: su tamano (0x8BDE) y los dibujos (0x8BEE)
+L 0x8B34 aparato_sprites              Los sprites del aparato: su tamano (0x8BDE) y los dibujos (0x8BEE)
 C 0x8B3C la tabla de dibujos de su tipo...
 C 0x8B4F ...y la primera palabra, el desplazamiento
 C 0x8B5B el ancho y el alto en sprites
 C 0x8B61 en 0xE814
-L 0x8B64 moto_fila                 Una fila de sprites
-L 0x8B66 moto_sprite               Un sprite: Y, X, dibujo y color
+L 0x8B64 aparato_fila                 Una fila de sprites
+L 0x8B66 aparato_sprite               Un sprite: Y, X, dibujo y color
 C 0x8B75 el siguiente, 16 a la derecha
 C 0x8B7D la fila siguiente, 16 abajo
-L 0x8B85 cae                       Lo que cae de la moto (0xE860): baja hasta abajo de la pantalla
+L 0x8B85 cae                       Lo que cae del aparato (0xE860): baja hasta abajo de la pantalla
 C 0x8B85 esta ronda tiene cosas que caen?
 C 0x8B8A su Y...
 C 0x8B91 ...en la pantalla?
 C 0x8B95 no: uno nuevo una vez de cada 64...
-C 0x8B9B ...si la moto esta en el paso 1...
-C 0x8BA5 ...desde la moto...
+C 0x8B9B ...si el aparato esta en el paso 1...
+C 0x8BA5 ...desdel aparato...
 C 0x8BA9 ...con su dibujo y color
 L 0x8BB0 cae_baja                  Baja con el paso de la ronda; por debajo de 0x50, un punto mas
 C 0x8BBF hasta 0xB8...
 C 0x8BC3 ...y fuera
 L 0x8BC9 cae_guarda                Guarda lo que cae
-D 0x8BCF 0x8BDB moto_salidas  La moto sale de tres sitios (Y, X, paso): el centro, la izquierda y la derecha
+D 0x8BCF 0x8BDB aparato_salidas  El aparato sale de tres sitios (Y, X, paso): el centro, la izquierda y la derecha
 F 0x8BCF 3,1,3,1,3,1
-D 0x8BDB 0x8BDE moto_tipos  Los tres tipos de moto
-D 0x8BDE 0x8BEE moto_tamanos  El tamano de la moto en sprites (ancho, alto), por su dibujo
+D 0x8BDB 0x8BDE aparato_colores  Los tres colores del aparato: negro (1), rojo claro (9) y blanco (15)
+D 0x8BDE 0x8BEE aparato_tamanos  El tamano del aparato en sprites (ancho, alto), por su dibujo
 F 0x8BDE 2
-D 0x8BEE 0x8C24 moto_dibujos  Los dibujos de la moto: punteros (0x8BEE) a su desplazamiento y sus numeros de dibujo
+D 0x8BEE 0x8C24 aparato_dibujos  Los dibujos del aparato: punteros (0x8BEE) a su desplazamiento y sus numeros de dibujo
 F 0x8BEE w8,3
 
 # ======================================================================
@@ -562,7 +562,7 @@ C 0x8D4F ...y hay uno menos
 L 0x8D54 enemigo_guarda            Guarda el enemigo y pinta sus sprites
 L 0x8D59 enemigo_nuevo             Un enemigo nuevo: cuando acaba la cuenta y si la pista no esta acabando, uno de cada 32
 C 0x8D69 uno mas
-C 0x8D6D sale por el centro o por un lado, segun la curva (como la moto)
+C 0x8D6D sale por el centro o por un lado, segun la curva (como el aparato)
 L 0x8D7F enemigo_nuevo_pon         Su Y, su X y su paso
 L 0x8D88 enemigo_nuevo_tipo        El tipo, al azar de 1 a 7
 C 0x8D94 el siguiente, dentro de 80 cuadros
@@ -576,19 +576,19 @@ D 0x8E03 0x8E13 colores_enemigos  Los colores de los enemigos: dos por tipo (el 
 F 0x8E03 2
 D 0x8E13 0x8E5B dibujos_enemigos  Los dibujos de los enemigos: cuatro tamanos (0x8E13) y cuatro del derribado (0x8E3F), cada uno cuantos sprites y dy, dx, dibujo, color
 F 0x8E13 w4,1,4,4,4
-B 0x8E5B El disparo del esquiador: sale con el boton 1 y sube; da a los enemigos (100 puntos), a la moto (200) o a las banderas (1000).
+B 0x8E5B El disparo del esquiador: sale con el boton 1 y sube; da a los enemigos (100 puntos), al aparato (200) o a las banderas (1000).
 L 0x8E5B disparo                   El disparo de este cuadro
 C 0x8E5B ya hay uno?
 C 0x8E61 el boton 1, recien pulsado?
 C 0x8E67 sale de la Y y la X del esquiador...
 C 0x8E6D ...con el dibujo 0x54...
 C 0x8E72 ...y el color 1
-C 0x8E7A durante el salto, va a la moto
+C 0x8E7A durante el salto, va al aparato
 L 0x8E82 disparo_tipo              Guarda a que va y su sonido
-L 0x8E88 disparo_vuela             El disparo en el aire: los enemigos o la moto, y sube
+L 0x8E88 disparo_vuela             El disparo en el aire: los enemigos o el aparato, y sube
 L 0x8E92 disparo_sube              Sube cuatro puntos: lo que hay en la pista
 C 0x8E9D va a la pista
-C 0x8E9F hacia la moto: hasta la Y 0x1C
+C 0x8E9F hacial aparato: hasta la Y 0x1C
 L 0x8EA5 disparo_pista             La casilla de debajo: una bandera (0xAF en adelante, no 0xBA) da 1000 puntos
 C 0x8EB4 diez puntos (1000)
 C 0x8EBE su sonido
@@ -600,8 +600,8 @@ L 0x8EE5 disparo_fuera             Se acaba
 L 0x8EE6 disparo_acaba             El disparo fuera de la pantalla
 L 0x8EF0 disparo_guarda            Guarda la Y; por encima de 0x90, el dibujo pequeno
 L 0x8EFC disparo_enemigos          Contra los enemigos: a menos de 6 en Y y en X
-C 0x8EFC va a la moto?
-C 0x8F02 cinco: los cuatro enemigos y la moto
+C 0x8EFC va al aparato?
+C 0x8F02 cinco: los cuatro enemigos y el aparato
 C 0x8F0C derribado ya?
 C 0x8F29 su sonido
 C 0x8F2C un punto (100)
@@ -610,17 +610,17 @@ C 0x8F3A el enemigo pasa a derribado (tipo 0)...
 C 0x8F3C ...con el bit 7 de su paso
 C 0x8F40 el disparo, fuera
 L 0x8F50 disparo_enemigos_sig      El siguiente
-L 0x8F58 disparo_moto              Contra la moto (0xE8DA): con la moto tocada, el disparo a menos de 8 da una vida
+L 0x8F58 disparo_aparato              Contral aparato (0xE8DA): con el aparato tocado, el disparo a menos de 8 da una vida
 C 0x8F7C su sonido
 C 0x8F7F una vida mas
 C 0x8F83 el marcador
-C 0x8F86 la moto se va
-L 0x8F94 disparo_moto_tamano       La moto entera: su tamano en sprites, por 8
+C 0x8F86 el aparato se va
+L 0x8F94 disparo_aparato_tamano       El aparato entero: su tamano en sprites, por 8
 C 0x8FC6 el paso de la explosion...
 C 0x8FD0 ...su sonido
 C 0x8FD3 el disparo, fuera
 C 0x8FDC dos puntos (200)
-C 0x8FE9 el ultimo golpe: la moto, tocada
+C 0x8FE9 si era el negro (color 1): tocado
 C 0x8FEF su sonido
 # ======================================================================
 # LA PISTA
@@ -711,11 +711,11 @@ C 0x94AA 0xFF: el recorrido se acaba
 L 0x94B2 recorrido_paso            Un paso (dy, dx); al llegar a su destino, el punto siguiente
 L 0x94D1 recorrido_pinta           Los tres sprites del esquiador, con el dibujo del punto
 C 0x94EF por debajo de 0x48...
-C 0x94F5 ...en 0x48, el sonido del disparo...
+C 0x94F5 ...en 0x48 justo, un sonido...
 D 0x9507 0x9535 recorrido_bonus  El recorrido del bonus: puntos de 7 bytes (dy, dx, destino Y X, dibujo); 0xFF acaba
 F 0x9507 7
 L 0x9535 bonus_disparo             El disparo del bonus: sube con su paso; si da en una diana (casilla 0x86), sus puntos
-C 0x9538 no hay disparo?
+C 0x9538 no hay disparo? (entonces, el boton: 0x95B6)
 C 0x9549 se sale por abajo o por la derecha?
 C 0x9556 la casilla de debajo
 C 0x9559 una diana?
@@ -728,7 +728,7 @@ C 0x95A0 su sonido
 L 0x95A4 bonus_disparo_fuera       El disparo, fuera
 D 0x95AA 0x95B6 bonus_puntos  Los carteles de las tres dianas: 3000, 2000 y 1000 en casillas
 F 0x95AA 4
-L 0x95B6 bonus_dispara             Dispara en el bonus: el paso del disparo segun el dibujo del esquiador (0x95DE)
+L 0x95B6 bonus_dispara             El boton dispara en el bonus: desde el esquiador, con el paso de su dibujo (0x95DE)
 L 0x95D1 bonus_dispara_busca       Busca el paso del dibujo
 D 0x95E0 0x95F4 bonus_pasos  El paso del disparo (dy, dx) por cada dibujo del esquiador
 F 0x95E0 2
@@ -789,7 +789,7 @@ C 0x986F las casillas 4 a 11, vacias
 L 0x9879 ram_borra                 La RAM de la partida (0xE000-0xE903) a cero, las diez cuentas a 0xFF y lo que cae, fuera
 C 0x9885 tampoco ronda acabada ni choque
 L 0x989B demo                      NZ en la demo
-L 0x98A0 moto_sprites_fuera        Los sprites de la moto (0xE814), fuera
+L 0x98A0 aparato_sprites_fuera        Los sprites del aparato (0xE814), fuera
 L 0x98B4 boton_disparo             Vuelve al de arriba si no esta el boton 1
 L 0x98BC boton_suelto              El boton suelto
 L 0x98C0 boton_nuevo               Vuelve al de arriba si el boton ya estaba pulsado
@@ -824,6 +824,9 @@ L 0x99BD azar20                    Al azar de 0 a 19
 # la vuelta de una repeticion, +11 cuantas faltan, +12 el vibrato y +13 el
 # barrido del ruido. Una pieza son grupos de 3 bytes: la nota (o una orden de
 # 0xF2 a 0xFF) y dos bytes de argumentos.
+# El canal de la RAM 0 (0xF002) suena en el C del PSG, el 1 en el B y el 2 en
+# el A: `sonido_cuadro` cuenta B de 2 a 0 empezando por 0xF002, y B es el canal
+# del PSG. Los efectos van en el 1 y el 2 (B y A) y pisan alli la musica.
 L 0xB94C canal                     HL = el canal B (0xF002 + B x 0x20), y lo deja en su estado inicial (0xBC12)
 C 0xB959 HL, el canal...
 C 0xB95A ...y desde +2...
@@ -913,16 +916,16 @@ L 0xBC9A musica_game_over          GAME OVER: tres canales (0xBE5A, 0xBE73, 0xBE
 L 0xBCB4 musica_choque             La caida: un canal (0xBEA5)
 L 0xBCBE musica_pattern_clear      PATTERN CLEAR: tres canales (0xBEBB, 0xBEEC, 0xBF1D)
 L 0xBCD6 pieza                     Pone la pieza DE en el canal B y la hace sonar
-L 0xBCE0 efecto_disparo            El disparo (canal 3, 0xBF33)
-L 0xBCE7 efecto_enemigo            El enemigo que se acerca (canal 2, 0xBF4F)
-L 0xBCEE efecto_derribo            Un enemigo derribado (canal 3, 0xBF77)
-L 0xBCF5 efecto_moto               La moto que sale (canal 2, 0xBF8A)
-L 0xBCFC efecto_diana              Una diana o la moto tocadas (canal 2, 0xBFA0)
-L 0xBD03 efecto_salto              El salto (canal 3, 0xBFB6)
-L 0xBD0A efecto_moto_tocada        La moto tocada (canal 3, 0xBFC3)
-L 0xBD11 efecto_moto_fuera         La moto que se va (canal 2, 0xBD62)
-L 0xBD18 efecto_bandera            Una bandera (canal 3, 0xBFD6)
-L 0xBD1F efecto_vida               Una vida extra (canal 3, 0xBFEC)
+L 0xBCE0 efecto_disparo            El disparo (canal A del PSG, 0xBF33)
+L 0xBCE7 efecto_enemigo            El enemigo que se acerca (canal B del PSG, 0xBF4F)
+L 0xBCEE efecto_derribo            Un enemigo derribado (canal A del PSG, 0xBF77)
+L 0xBCF5 efecto_aparato               El aparato que sale (canal B del PSG, 0xBF8A)
+L 0xBCFC efecto_diana              Una diana o el aparato tocados (canal B del PSG, 0xBFA0)
+L 0xBD03 efecto_salto              El salto (canal A del PSG, 0xBFB6)
+L 0xBD0A efecto_golpe               El aparato tocado, y el esquiador del bonus en la Y 0x48 (canal A del PSG, 0xBFC3)
+L 0xBD11 efecto_aparato_fuera         El aparato que se va (canal B del PSG, 0xBD62)
+L 0xBD18 efecto_bandera            Una bandera (canal A del PSG, 0xBFD6)
+L 0xBD1F efecto_vida               Una vida extra (canal A del PSG, 0xBFEC)
 D 0xBD26 0xC000 piezas  Las piezas de las seis musicas y los diez efectos: grupos de 3 bytes (nota u orden, y sus dos argumentos)
 F 0xBD26 3
 
@@ -947,7 +950,7 @@ D 0xA0CD 0xA1CD marcador_casillas  Las 32 casillas del marcador y del monte (des
 F 0xA0CD 8
 D 0xA1CD 0xA34D sprites_esquiador  Los 12 sprites del esquiador (0x3800), que se cargan tambien de lado
 F 0xA1CD 8
-D 0xA34D 0xA90D sprites  Los 46 sprites de los enemigos, la moto, lo que cae, el disparo y la explosion (desde 0x3A40)
+D 0xA34D 0xA90D sprites  Los 46 sprites de los enemigos, el aparato, lo que cae, el disparo y la explosion (desde 0x3A40)
 F 0xA34D 8
 D 0xA90D 0xA9CD sprites_bonus  Los seis sprites del esquiador del bonus, de cara, que se giran y se dan la vuelta para los demas dibujos
 F 0xA90D 8
@@ -1048,7 +1051,7 @@ C 0x8A4A ...menos de 8: choque
 C 0x8B20 al azar...
 C 0x8B23 ...de 1 a 3...
 C 0x8B28 ...en la tabla de tipos
-C 0x8B30 el tipo de la moto
+C 0x8B30 su color
 C 0x8B37 Y, X, paso y tipo
 C 0x8B3A el color, a A'
 C 0x8B42 el tipo, por dos, en la tabla
@@ -1187,7 +1190,7 @@ C 0x94E4 la Y...
 C 0x94E6 ...la X...
 C 0x94E8 ...y el dibujo...
 C 0x94EB ...el siguiente, cuatro mas
-C 0x94FA el disparo, 16 por encima...
+C 0x94FA ...y por debajo, un sprite mas 16 puntos por encima...
 C 0x94FF ...en la X...
 C 0x9501 ...dibujo 0x60...
 C 0x9504 ...color 0x0E
@@ -1289,7 +1292,7 @@ C 0x9892 ...a 0xFF
 C 0x9896 lo que cae, fuera
 C 0x989B 0xE914...
 C 0x989E ...distinto de 0
-C 0x98A3 los seis sprites de la moto...
+C 0x98A3 los seis sprites del aparato...
 C 0x98AC ...a 0xC0
 C 0x98B4 el boton 1...
 C 0x98BA no: fuera tambien del que llama
@@ -1436,8 +1439,8 @@ C 0xBCD1 ...y el 2
 C 0xBCD6 el canal en su estado inicial
 C 0xBCD9 el principio de la pieza...
 C 0xBCDD ...y suena
-C 0x8F94 el tipo de la moto...
-C 0x8F95 ...solo las tres primeras tallas se pueden tocar
+C 0x8F94 su dibujo...
+C 0x8F95 ...con la explosion (4 en adelante), no
 C 0x8F98 su tamano en sprites (ancho en C, alto en B)...
 C 0x8F9E ...por 8
 C 0x8FAA la distancia en Y...
@@ -1446,12 +1449,12 @@ C 0x8FB3 la distancia en X...
 C 0x8FB7 ...dentro de su ancho?
 C 0x8FBC tocada
 C 0x8FC1 Y, X, paso y tipo
-C 0x8FC4 el paso, a A'
+C 0x8FC4 su color, a A'
 C 0x8FC8 el dibujo de la explosion: cuatro mas
 C 0x8FCD guarda
 C 0x8FD8 no hay disparo
-C 0x8FE4 la moto otra vez...
-C 0x8FE8 ...el paso que tenia
+C 0x8FE4 el aparato otra vez...
+C 0x8FE8 ...el color que tenia
 C 0x8FEB 1: tocada
 C 0x80D6 a la casilla 0
 C 0x80E2 en 0xE000...
@@ -1527,15 +1530,15 @@ C 0x8F17 ...menos de 6?
 C 0x8F1B la X del disparo...
 C 0x8F1E ...menos la del enemigo...
 C 0x8F22 ...menos de 6: tocado
-C 0x8F58 la moto
+C 0x8F58 el aparato
 C 0x8F60 no hay?
 C 0x8F63 ya tocada?
 C 0x8F69 el disparo...
-C 0x8F6C ...contra la moto en Y...
+C 0x8F6C ...contral aparato en Y...
 C 0x8F71 ...a menos de 8...
 C 0x8F74 ...y en X...
 C 0x8F79 ...a menos de 8
-C 0x8F8A sin moto
+C 0x8F8A sin aparato
 C 0x8F90 ni sus sprites
 C 0x9543 la X...
 C 0x9544 ...mas el paso
@@ -1630,7 +1633,7 @@ C 0x8780 HL la entrada
 C 0x8783 la direccion en la entrada
 C 0x8788 dos bytes: el tipo y el paso
 C 0x8A58 cada ocho cuadros
-C 0x8A61 la moto
+C 0x8A61 el aparato
 C 0x8A6B ...un punto mas abajo
 C 0x8A70 hasta 0x30
 C 0x8A84 un sprite en su Y y X...
@@ -1744,7 +1747,7 @@ C 0x8AEA por encima de 0x28...
 C 0x8AEE ...otra talla...
 C 0x8AEF ...y otro punto
 C 0x8AF0 por encima de 0x10...
-C 0x8AF4 ...la mas pequena...
+C 0x8AF4 ...la mas pequeno...
 C 0x8AF5 ...y otro punto
 C 0x9021 la fila...
 C 0x9023 cinco casillas...

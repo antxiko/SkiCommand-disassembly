@@ -4,7 +4,7 @@
 
 ## De quien es cada cosa
 
-**El juego no es nuestro.** *Ski Command* lo hizo **Hudson Soft** con licencia de **Konami** para MSX en 1985, en una tarjeta de 16 KB (Bee Card). Todos los derechos sobre el juego
+**El juego no es nuestro.** *Ski Command* lo hizo **Casio** para MSX en 1984, en un cartucho de 16 KB. Todos los derechos sobre el juego
 siguen siendo de sus titulares.
 
 **Lo que si es nuestro** son las herramientas de este repositorio, los

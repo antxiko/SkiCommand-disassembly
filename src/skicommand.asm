@@ -549,7 +549,7 @@ DATA_8478:
 	defb 080h,03ch,000h,000h	; 84a0
 
 ; ----------------------------------------------------------------------
-; DATOS dificultad: Seis dificultades (4 bytes): 0xE8FE 0 si sale la moto,
+; DATOS dificultad: Seis dificultades (4 bytes): 0xE8FE 0 si sale el aparato,
 ;   0xE8FF el paso de los enemigos, 0xE900 el de lo que cae (0xFF: nada),
 ;   0xE901 la mascara de cuadros de la pista (15 o 7)
 ;   0x84a4..0x84bc  (24 bytes)
@@ -613,7 +613,7 @@ irq_partida:		; La interrupcion de la partida
 	call disparo		;8585   ; el disparo
 	call choques		;8588   ; los choques del esquiador
 	call ronda_cuadro		;858b   ; la ronda: el fin, la musica, las curvas y los objetos nuevos
-	call moto		;858e   ; la moto
+	call aparato		;858e   ; el aparato
 	call enemigos		;8591   ; los enemigos
 irq_fin:		; El marcador, los contadores y la vuelta a la BIOS
 	call marcador		;8594
@@ -812,7 +812,7 @@ ronda_musica:		; Si la musica se ha callado, la de la ronda
 	jr c,ronda_curva		;86b5
 	cp 00eh		;86b7   ; del 12 al 13, sin curvas
 	jr c,ronda_recta		;86b9
-	ld hl,(0e8dah)		;86bb   ; del 14 en adelante: sin moto...
+	ld hl,(0e8dah)		;86bb   ; del 14 en adelante: sin aparato...
 	ld a,l			;86be
 	or h			;86bf
 	jr nz,ronda_recta		;86c0
@@ -1067,7 +1067,7 @@ salto:		; El salto, por la cuenta 0xE884: sube, se queda y baja, con sus dibujos
 salto_sube:		; Del 2 al 34: sube
 	cp 023h		;8874
 	jr nc,salto_baja		;8876
-	cp 01bh		;8878   ; en el 27, la sombra mas pequena
+	cp 01bh		;8878   ; en el 27, la sombra mas pequeno
 	jr nz,salto_sube_paso		;887a
 	ld hl,0e80eh		;887c
 	ld (hl),050h		;887f
@@ -1293,18 +1293,18 @@ choques_cae:		; Lo que cae (0xE860), a menos de 8 en Y y en X: choque
 	jr choque		;8a4d
 
 ; ----------------------------------------------------------------------
-; La moto de nieve: sale de vez en cuando, baja hacia el esquiador y explota cuando la tocan.
+; El aparato volador (por la forma, un helicoptero; el juego no lo nombra): sale de vez en cuando, se acerca volando hacia el esquiador, suelta cosas y explota cuando lo tocan.
 ; ----------------------------------------------------------------------
-moto:		; La moto de este cuadro
+aparato:		; El aparato de este cuadro
 	ld a,(0e8aah)		;8a4f   ; tocada?
 	or a			;8a52
-	jr z,moto_marcha		;8a53
+	jr z,aparato_marcha		;8a53
 	ld a,(0e881h)		;8a55   ; cada ocho cuadros...
 	add a,004h		;8a58   ; cada ocho cuadros
 	and 007h		;8a5a
-	jr nz,moto_fin		;8a5c
-	call moto_sprites_fuera		;8a5e   ; fuera los sprites de la moto
-	ld hl,0e8dah		;8a61   ; la moto
+	jr nz,aparato_fin		;8a5c
+	call aparato_sprites_fuera		;8a5e   ; fuera los sprites del aparato
+	ld hl,0e8dah		;8a61   ; el aparato
 	push hl			;8a64
 	call lee4		;8a65
 	pop hl			;8a68
@@ -1315,11 +1315,11 @@ moto:		; La moto de este cuadro
 	ld a,e			;8a6f   ; ...hasta la Y 0x30...
 	cp 030h		;8a70   ; hasta 0x30
 	jr c,L_8A80		;8a72
-	ld de,00000h		;8a74   ; ...y entonces la moto se va
+	ld de,00000h		;8a74   ; ...y entonces el aparato se va
 	call guarda4		;8a77
 	xor a			;8a7a
 	ld (0e8aah),a		;8a7b
-	jr moto_fin		;8a7e
+	jr aparato_fin		;8a7e
 L_8A80:
 	ld ix,0e814h		;8a80   ; la explosion: dos sprites en su sitio
 	ld (ix+000h),e		;8a84   ; un sprite en su Y y X...
@@ -1330,12 +1330,12 @@ L_8A80:
 	ld (ix+005h),d		;8a95
 	ld (ix+006h),0fch		;8a98   ; ...dibujo 0xFC...
 	ld (ix+007h),00ah		;8a9c   ; ...color 0x0A
-	jr moto_fin		;8aa0
-moto_marcha:		; En marcha
-	call moto_mueve		;8aa2
-moto_fin:		; Y lo que cae
+	jr aparato_fin		;8aa0
+aparato_marcha:		; En marcha
+	call aparato_mueve		;8aa2
+aparato_fin:		; Y lo que cae
 	jp cae		;8aa5
-moto_mueve:		; Mueve la moto cada ocho cuadros: hacia la X del esquiador, y sube
+aparato_mueve:		; Mueve el aparato cada ocho cuadros: hacia la X del esquiador, y sube
 	ld a,(0e881h)		;8aa8
 	add a,004h		;8aab
 	and 007h		;8aad
@@ -1344,10 +1344,10 @@ moto_mueve:		; Mueve la moto cada ocho cuadros: hacia la X del esquiador, y sube
 	push hl			;8ab3
 	call lee4		;8ab4
 	pop hl			;8ab7
-	ld a,e			;8ab8   ; no hay moto?
+	ld a,e			;8ab8   ; no hay aparato?
 	or d			;8ab9
-	jr z,moto_sale		;8aba
-	call moto_sprites_fuera		;8abc   ; fuera sus sprites
+	jr z,aparato_sale		;8aba
+	call aparato_sprites_fuera		;8abc   ; fuera sus sprites
 	ld a,(0e8a1h)		;8abf   ; hacia la X del esquiador...
 	cp d			;8ac2
 	jr z,L_8AC9		;8ac3
@@ -1367,62 +1367,62 @@ L_8ACB:
 	ld c,a			;8ad2
 	ld a,e			;8ad3
 	cp 0f8h		;8ad4   ; por arriba de la pantalla: se va...
-	jr c,moto_dibujo		;8ad6
+	jr c,aparato_dibujo		;8ad6
 	ld (hl),000h		;8ad8
 	inc hl			;8ada
 	ld (hl),000h		;8adb
 	inc hl			;8add
 	ld (hl),000h		;8ade
-	call efecto_moto_fuera		;8ae0   ; ...con su sonido
+	call efecto_aparato_fuera		;8ae0   ; ...con su sonido
 	ret			;8ae3
-moto_dibujo:		; Cuanto mas lejos, mas pequena: cuatro tamanos y mas lenta
+aparato_dibujo:		; Cuanto mas lejos, mas pequeno: cuatro tamanos y mas lenta
 	cp 038h		;8ae4   ; por encima de 0x38...
-	jr nc,moto_guarda		;8ae6
+	jr nc,aparato_guarda		;8ae6
 	inc c			;8ae8   ; ...una talla menos...
 	dec e			;8ae9   ; ...y un punto mas arriba
 	cp 028h		;8aea   ; por encima de 0x28...
-	jr nc,moto_guarda		;8aec
+	jr nc,aparato_guarda		;8aec
 	inc c			;8aee   ; ...otra talla...
 	dec e			;8aef   ; ...y otro punto
 	cp 010h		;8af0   ; por encima de 0x10...
-	jr nc,moto_guarda		;8af2
-	inc c			;8af4   ; ...la mas pequena...
+	jr nc,aparato_guarda		;8af2
+	inc c			;8af4   ; ...la mas pequeno...
 	dec e			;8af5   ; ...y otro punto
-moto_guarda:		; Guarda la moto
+aparato_guarda:		; Guardal aparato
 	call guarda4		;8af6
-	jr moto_sprites		;8af9
-moto_sale:		; Una moto nueva: si la ronda la tiene, una vez de cada 16
-	ld a,(0e8feh)		;8afb   ; esta ronda tiene moto?
+	jr aparato_sprites		;8af9
+aparato_sale:		; Un aparato nuevo: si la ronda la tiene, una vez de cada 16
+	ld a,(0e8feh)		;8afb   ; esta ronda tiene aparato?
 	or a			;8afe
 	ret nz			;8aff
 	call azar		;8b00
 	and 00fh		;8b03
 	ret nz			;8b05
-	ld hl,08bcfh		;8b06   ; la moto sale por el centro (0x8BCF)...
+	ld hl,08bcfh		;8b06   ; el aparato sale por el centro (0x8BCF)...
 	ld a,(0e8a8h)		;8b09
 	or a			;8b0c
-	jr z,moto_sale_pon		;8b0d
+	jr z,aparato_sale_pon		;8b0d
 	ld hl,08bd3h		;8b0f   ; ...o por un lado, segun la curva...
 	inc a			;8b12
-	jr nz,moto_sale_pon		;8b13
+	jr nz,aparato_sale_pon		;8b13
 	ld hl,08bd7h		;8b15   ; ...(0x8BD3 o 0x8BD7)
-moto_sale_pon:		; Su Y, su X y su paso
+aparato_sale_pon:		; Su Y, su X y su paso
 	ld de,0e8dah		;8b18
 	ld bc,00003h		;8b1b
 	ldir		;8b1e
-moto_sale_tipo:		; El tipo, al azar de 1 a 3 (0x8BDB)
+aparato_sale_color:		; Su color, uno de tres al azar (0x8BDB)
 	call azar		;8b20   ; al azar...
 	and 003h		;8b23   ; ...de 1 a 3...
-	jr z,moto_sale_tipo		;8b25
+	jr z,aparato_sale_color		;8b25
 	dec a			;8b27
 	ld hl,08bdbh		;8b28   ; ...en la tabla de tipos
 	ld b,000h		;8b2b
 	ld c,a			;8b2d
 	add hl,bc			;8b2e
 	ld a,(hl)			;8b2f
-	ld (de),a			;8b30   ; el tipo de la moto
-	call efecto_moto		;8b31   ; su sonido
-moto_sprites:		; Los sprites de la moto: su tamano (0x8BDE) y los dibujos (0x8BEE)
+	ld (de),a			;8b30   ; su color
+	call efecto_aparato		;8b31   ; su sonido
+aparato_sprites:		; Los sprites del aparato: su tamano (0x8BDE) y los dibujos (0x8BEE)
 	ld hl,0e8dah		;8b34
 	call lee4		;8b37   ; Y, X, paso y tipo
 	ld a,b			;8b3a   ; el color, a A'
@@ -1444,10 +1444,10 @@ moto_sprites:		; Los sprites de la moto: su tamano (0x8BDE) y los dibujos (0x8BE
 	ld hl,08bdeh		;8b5b   ; el ancho y el alto en sprites
 	call tabla_par		;8b5e
 	ld hl,0e814h		;8b61   ; en 0xE814
-moto_fila:		; Una fila de sprites
+aparato_fila:		; Una fila de sprites
 	push de			;8b64   ; la fila
 	push bc			;8b65
-moto_sprite:		; Un sprite: Y, X, dibujo y color
+aparato_sprite:		; Un sprite: Y, X, dibujo y color
 	ld (hl),e			;8b66   ; la Y
 	inc hl			;8b67
 	ld (hl),d			;8b68   ; la X
@@ -1463,16 +1463,16 @@ moto_sprite:		; Un sprite: Y, X, dibujo y color
 	ld a,d			;8b75   ; el siguiente, 16 a la derecha
 	add a,010h		;8b76
 	ld d,a			;8b78
-	djnz moto_sprite		;8b79   ; los sprites de la fila
+	djnz aparato_sprite		;8b79   ; los sprites de la fila
 	pop bc			;8b7b
 	pop de			;8b7c
 	ld a,e			;8b7d   ; la fila siguiente, 16 abajo
 	add a,010h		;8b7e
 	ld e,a			;8b80
 	dec c			;8b81   ; las filas
-	jr nz,moto_fila		;8b82
+	jr nz,aparato_fila		;8b82
 	ret			;8b84
-cae:		; Lo que cae de la moto (0xE860): baja hasta abajo de la pantalla
+cae:		; Lo que cae del aparato (0xE860): baja hasta abajo de la pantalla
 	ld a,(0e900h)		;8b85   ; esta ronda tiene cosas que caen?
 	inc a			;8b88
 	ret z			;8b89
@@ -1484,12 +1484,12 @@ cae:		; Lo que cae de la moto (0xE860): baja hasta abajo de la pantalla
 	call azar		;8b95   ; no: uno nuevo una vez de cada 64...
 	and 03fh		;8b98
 	ret nz			;8b9a
-	ld hl,0e8dah		;8b9b   ; ...si la moto esta en el paso 1...
+	ld hl,0e8dah		;8b9b   ; ...si el aparato esta en el paso 1...
 	call lee4		;8b9e
 	ld a,c			;8ba1
 	cp 001h		;8ba2
 	ret nz			;8ba4
-	ld (0e860h),de		;8ba5   ; ...desde la moto...
+	ld (0e860h),de		;8ba5   ; ...desdel aparato...
 	ld hl,001ach		;8ba9   ; ...con su dibujo y color
 	ld (0e862h),hl		;8bac
 	ret			;8baf
@@ -1513,10 +1513,10 @@ cae_guarda:		; Guarda lo que cae
 	jp guarda4		;8bcc
 
 ; ----------------------------------------------------------------------
-; DATOS moto_salidas: La moto sale de tres sitios (Y, X, paso): el centro, la
-;   izquierda y la derecha
+; DATOS aparato_salidas: El aparato sale de tres sitios (Y, X, paso): el
+;   centro, la izquierda y la derecha
 ;   0x8bcf..0x8bdb  (12 bytes)
-DATA_moto_salidas:
+DATA_aparato_salidas:
 	defb 03ch,060h,000h	; 8bcf
 	defb 000h	; 8bd2
 	defb 03ch,050h,000h	; 8bd3
@@ -1525,16 +1525,17 @@ DATA_moto_salidas:
 	defb 000h	; 8bda
 
 ; ----------------------------------------------------------------------
-; DATOS moto_tipos: Los tres tipos de moto
+; DATOS aparato_colores: Los tres colores del aparato: negro (1), rojo claro
+;   (9) y blanco (15)
 ;   0x8bdb..0x8bde  (3 bytes)
-DATA_moto_tipos:
+DATA_aparato_colores:
 	defb 001h,009h,00fh	; 8bdb
 
 ; ----------------------------------------------------------------------
-; DATOS moto_tamanos: El tamano de la moto en sprites (ancho, alto), por su
-;   dibujo
+; DATOS aparato_tamanos: El tamano del aparato en sprites (ancho, alto), por
+;   su dibujo
 ;   0x8bde..0x8bee  (16 bytes)
-DATA_moto_tamanos:
+DATA_aparato_tamanos:
 	defb 001h,001h	; 8bde
 	defb 001h,001h	; 8be0
 	defb 002h,002h	; 8be2
@@ -1545,10 +1546,10 @@ DATA_moto_tamanos:
 	defb 002h,003h	; 8bec
 
 ; ----------------------------------------------------------------------
-; DATOS moto_dibujos: Los dibujos de la moto: punteros (0x8BEE) a su
+; DATOS aparato_dibujos: Los dibujos del aparato: punteros (0x8BEE) a su
 ;   desplazamiento y sus numeros de dibujo
 ;   0x8bee..0x8c24  (54 bytes)
-DATA_moto_dibujos:
+DATA_aparato_dibujos:
 	defw 08bfeh,08c01h,08c04h,08c0ah,08c12h,08c15h,08c18h,08c1ch	; 8bee
 	defb 0f8h,0f8h,088h	; 8bfe
 	defb 0f4h,0f8h,084h	; 8c01
@@ -1778,7 +1779,7 @@ enemigo_nuevo:		; Un enemigo nuevo: cuando acaba la cuenta y si la pista no esta
 	ret nz			;8d68
 	ld hl,0e8deh		;8d69   ; uno mas
 	inc (hl)			;8d6c
-	ld hl,08bcfh		;8d6d   ; sale por el centro o por un lado, segun la curva (como la moto)
+	ld hl,08bcfh		;8d6d   ; sale por el centro o por un lado, segun la curva (como el aparato)
 	ld a,(0e8a8h)		;8d70   ; la curva...
 	or a			;8d73
 	jr z,enemigo_nuevo_pon		;8d74
@@ -1911,7 +1912,7 @@ DATA_dibujos_enemigos:
 
 
 ; ----------------------------------------------------------------------
-; El disparo del esquiador: sale con el boton 1 y sube; da a los enemigos (100 puntos), a la moto (200) o a las banderas (1000).
+; El disparo del esquiador: sale con el boton 1 y sube; da a los enemigos (100 puntos), al aparato (200) o a las banderas (1000).
 ; ----------------------------------------------------------------------
 disparo:		; El disparo de este cuadro
 	ld a,(0e8f8h)		;8e5b   ; ya hay uno?
@@ -1926,14 +1927,14 @@ disparo:		; El disparo de este cuadro
 	ld a,001h		;8e72   ; ...y el color 1
 	ld (0e813h),a		;8e74
 	ld (0e8f8h),a		;8e77
-	ld a,(0e884h)		;8e7a   ; durante el salto, va a la moto
+	ld a,(0e884h)		;8e7a   ; durante el salto, va al aparato
 	cp 050h		;8e7d
 	jr c,disparo_tipo		;8e7f
 	xor a			;8e81
 disparo_tipo:		; Guarda a que va y su sonido
 	ld (0e8a5h),a		;8e82
 	jp efecto_disparo		;8e85
-disparo_vuela:		; El disparo en el aire: los enemigos o la moto, y sube
+disparo_vuela:		; El disparo en el aire: los enemigos o el aparato, y sube
 	ld a,(0e881h)		;8e88
 	call disparo_enemigos		;8e8b
 	call disparo_sube		;8e8e
@@ -1946,7 +1947,7 @@ disparo_sube:		; Sube cuatro puntos: lo que hay en la pista
 	or a			;8e9b
 	ld a,b			;8e9c
 	jr z,disparo_pista		;8e9d   ; va a la pista
-	cp 01ch		;8e9f   ; hacia la moto: hasta la Y 0x1C
+	cp 01ch		;8e9f   ; hacial aparato: hasta la Y 0x1C
 	jr nc,disparo_guarda		;8ea1
 	jr disparo_acaba		;8ea3
 disparo_pista:		; La casilla de debajo: una bandera (0xAF en adelante, no 0xBA) da 1000 puntos
@@ -1996,10 +1997,10 @@ disparo_guarda:		; Guarda la Y; por encima de 0x90, el dibujo pequeno
 	ld (0e812h),a		;8ef8
 	ret			;8efb
 disparo_enemigos:		; Contra los enemigos: a menos de 6 en Y y en X
-	ld a,(0e8a5h)		;8efc   ; va a la moto?
+	ld a,(0e8a5h)		;8efc   ; va al aparato?
 	or a			;8eff
-	jr nz,disparo_moto		;8f00
-	ld hl,0e8e2h		;8f02   ; cinco: los cuatro enemigos y la moto
+	jr nz,disparo_aparato		;8f00
+	ld hl,0e8e2h		;8f02   ; cinco: los cuatro enemigos y el aparato
 	ld b,005h		;8f05
 L_8F07:
 	push bc			;8f07   ; un enemigo...
@@ -2049,8 +2050,8 @@ disparo_enemigos_sig:		; El siguiente
 	pop bc			;8f54
 	djnz L_8F07		;8f55   ; el siguiente
 	ret			;8f57
-disparo_moto:		; Contra la moto (0xE8DA): con la moto tocada, el disparo a menos de 8 da una vida
-	ld hl,0e8dah		;8f58   ; la moto
+disparo_aparato:		; Contral aparato (0xE8DA): con el aparato tocado, el disparo a menos de 8 da una vida
+	ld hl,0e8dah		;8f58   ; el aparato
 	push hl			;8f5b
 	call lee4		;8f5c
 	pop hl			;8f5f
@@ -2059,9 +2060,9 @@ disparo_moto:		; Contra la moto (0xE8DA): con la moto tocada, el disparo a menos
 	ret z			;8f62
 	ld a,(0e8aah)		;8f63   ; ya tocada?
 	or a			;8f66
-	jr z,disparo_moto_tamano		;8f67
+	jr z,disparo_aparato_tamano		;8f67
 	ld hl,(0e810h)		;8f69   ; el disparo...
-	ld a,e			;8f6c   ; ...contra la moto en Y...
+	ld a,e			;8f6c   ; ...contral aparato en Y...
 	sub l			;8f6d
 	call absoluto		;8f6e
 	cp 008h		;8f71   ; ...a menos de 8...
@@ -2075,15 +2076,15 @@ disparo_moto:		; Contra la moto (0xE8DA): con la moto tocada, el disparo a menos
 	ld hl,0e90eh		;8f7f   ; una vida mas
 	inc (hl)			;8f82
 	call marcador_pinta		;8f83   ; el marcador
-	xor a			;8f86   ; la moto se va
+	xor a			;8f86   ; el aparato se va
 	ld (0e8aah),a		;8f87
-	ld hl,00000h		;8f8a   ; sin moto
+	ld hl,00000h		;8f8a   ; sin aparato
 	ld (0e8dah),hl		;8f8d
-	call moto_sprites_fuera		;8f90   ; ni sus sprites
+	call aparato_sprites_fuera		;8f90   ; ni sus sprites
 	ret			;8f93
-disparo_moto_tamano:		; La moto entera: su tamano en sprites, por 8
-	ld a,c			;8f94   ; el tipo de la moto...
-	cp 004h		;8f95   ; ...solo las tres primeras tallas se pueden tocar
+disparo_aparato_tamano:		; El aparato entero: su tamano en sprites, por 8
+	ld a,c			;8f94   ; su dibujo...
+	cp 004h		;8f95   ; ...con la explosion (4 en adelante), no
 	ret nc			;8f97
 	ld hl,08bdeh		;8f98   ; su tamano en sprites (ancho en C, alto en B)...
 	call tabla_par		;8f9b
@@ -2107,7 +2108,7 @@ disparo_moto_tamano:		; La moto entera: su tamano en sprites, por 8
 	push hl			;8fbf
 	push hl			;8fc0
 	call lee4		;8fc1   ; Y, X, paso y tipo
-	ld a,b			;8fc4   ; el paso, a A'
+	ld a,b			;8fc4   ; su color, a A'
 	ex af,af'			;8fc5
 	ld b,006h		;8fc6   ; el paso de la explosion...
 	ld a,c			;8fc8   ; el dibujo de la explosion: cuatro mas
@@ -2124,14 +2125,14 @@ disparo_moto_tamano:		; La moto entera: su tamano en sprites, por 8
 	inc hl			;8fdf
 	inc hl			;8fe0
 	ld (0e90ah),hl		;8fe1
-	pop hl			;8fe4   ; la moto otra vez...
+	pop hl			;8fe4   ; el aparato otra vez...
 	call lee4		;8fe5
-	ex af,af'			;8fe8   ; ...el paso que tenia
-	dec a			;8fe9   ; el ultimo golpe: la moto, tocada
+	ex af,af'			;8fe8   ; ...el color que tenia
+	dec a			;8fe9   ; si era el negro (color 1): tocado
 	ret nz			;8fea
 	inc a			;8feb   ; 1: tocada
 	ld (0e8aah),a		;8fec
-	call efecto_moto_tocada		;8fef   ; su sonido
+	call efecto_golpe		;8fef   ; su sonido
 	ret			;8ff2
 
 ; ----------------------------------------------------------------------
@@ -2762,10 +2763,10 @@ L_94E4:
 	ret c			;94f2
 	push hl			;94f3   ; en 0x48...
 	push de			;94f4
-	call z,efecto_moto_tocada		;94f5   ; ...en 0x48, el sonido del disparo...
+	call z,efecto_golpe		;94f5   ; ...en 0x48 justo, un sonido...
 	pop de			;94f8
 	pop hl			;94f9
-	ld a,0f0h		;94fa   ; el disparo, 16 por encima...
+	ld a,0f0h		;94fa   ; ...y por debajo, un sprite mas 16 puntos por encima...
 	add a,e			;94fc
 	ld (hl),a			;94fd
 	inc hl			;94fe
@@ -2796,7 +2797,7 @@ DATA_recorrido_bonus:
 
 bonus_disparo:		; El disparo del bonus: sube con su paso; si da en una diana (casilla 0x86), sus puntos
 	ld a,(0e810h)		;9535
-	cp 0c0h		;9538   ; no hay disparo?
+	cp 0c0h		;9538   ; no hay disparo? (entonces, el boton: 0x95B6)
 	jr z,$+124		;953a
 	ld de,(0e891h)		;953c   ; su paso...
 	ld hl,(0e810h)		;9540   ; ...mas la posicion
@@ -2870,7 +2871,7 @@ DATA_bonus_puntos:
 ; ======================================================================
 
 
-bonus_dispara:		; Dispara en el bonus: el paso del disparo segun el dibujo del esquiador (0x95DE)
+bonus_dispara:		; El boton dispara en el bonus: desde el esquiador, con el paso de su dibujo (0x95DE)
 	call boton_disparo		;95b6
 	call boton_nuevo		;95b9
 	ld a,(0e800h)		;95bc   ; el esquiador...
@@ -3322,11 +3323,11 @@ demo:		; NZ en la demo
 	ld a,(0e914h)		;989b   ; 0xE914...
 	or a			;989e   ; ...distinto de 0
 	ret			;989f
-moto_sprites_fuera:		; Los sprites de la moto (0xE814), fuera
+aparato_sprites_fuera:		; Los sprites del aparato (0xE814), fuera
 	push hl			;98a0
 	push de			;98a1
 	push bc			;98a2
-	ld hl,0e814h		;98a3   ; los seis sprites de la moto...
+	ld hl,0e814h		;98a3   ; los seis sprites del aparato...
 	ld de,0e815h		;98a6
 	ld bc,00018h		;98a9
 	ld (hl),0c0h		;98ac   ; ...a 0xC0
@@ -3825,7 +3826,7 @@ DATA_A1CD:
 	defb 070h,038h,01ch,01ch,00eh,000h,000h,000h	; a345  p8......
 
 ; ----------------------------------------------------------------------
-; DATOS sprites: Los 46 sprites de los enemigos, la moto, lo que cae, el
+; DATOS sprites: Los 46 sprites de los enemigos, el aparato, lo que cae, el
 ;   disparo y la explosion (desde 0x3A40)
 ;   0xa34d..0xa90d  (1472 bytes)
 DATA_sprites:
@@ -5097,43 +5098,43 @@ pieza:		; Pone la pieza DE en el canal B y la hace sonar
 	inc hl			;bcdc
 	ld (hl),001h		;bcdd   ; ...y suena
 	ret			;bcdf
-efecto_disparo:		; El disparo (canal 3, 0xBF33)
+efecto_disparo:		; El disparo (canal A del PSG, 0xBF33)
 	ld b,002h		;bce0
 	ld de,0bf33h		;bce2
 	jr pieza		;bce5
-efecto_enemigo:		; El enemigo que se acerca (canal 2, 0xBF4F)
+efecto_enemigo:		; El enemigo que se acerca (canal B del PSG, 0xBF4F)
 	ld b,001h		;bce7
 	ld de,0bf4fh		;bce9
 	jr pieza		;bcec
-efecto_derribo:		; Un enemigo derribado (canal 3, 0xBF77)
+efecto_derribo:		; Un enemigo derribado (canal A del PSG, 0xBF77)
 	ld b,002h		;bcee
 	ld de,0bf77h		;bcf0
 	jr pieza		;bcf3
-efecto_moto:		; La moto que sale (canal 2, 0xBF8A)
+efecto_aparato:		; El aparato que sale (canal B del PSG, 0xBF8A)
 	ld b,001h		;bcf5
 	ld de,0bf8ah		;bcf7
 	jr pieza		;bcfa
-efecto_diana:		; Una diana o la moto tocadas (canal 2, 0xBFA0)
+efecto_diana:		; Una diana o el aparato tocados (canal B del PSG, 0xBFA0)
 	ld b,001h		;bcfc
 	ld de,0bfa0h		;bcfe
 	jr pieza		;bd01
-efecto_salto:		; El salto (canal 3, 0xBFB6)
+efecto_salto:		; El salto (canal A del PSG, 0xBFB6)
 	ld b,002h		;bd03
 	ld de,0bfb6h		;bd05
 	jr pieza		;bd08
-efecto_moto_tocada:		; La moto tocada (canal 3, 0xBFC3)
+efecto_golpe:		; El aparato tocado, y el esquiador del bonus en la Y 0x48 (canal A del PSG, 0xBFC3)
 	ld b,002h		;bd0a
 	ld de,0bfc3h		;bd0c
 	jr pieza		;bd0f
-efecto_moto_fuera:		; La moto que se va (canal 2, 0xBD62)
+efecto_aparato_fuera:		; El aparato que se va (canal B del PSG, 0xBD62)
 	ld b,001h		;bd11
 	ld de,0bd62h		;bd13
 	jr pieza		;bd16
-efecto_bandera:		; Una bandera (canal 3, 0xBFD6)
+efecto_bandera:		; Una bandera (canal A del PSG, 0xBFD6)
 	ld b,002h		;bd18
 	ld de,0bfd6h		;bd1a
 	jr pieza		;bd1d
-efecto_vida:		; Una vida extra (canal 3, 0xBFEC)
+efecto_vida:		; Una vida extra (canal A del PSG, 0xBFEC)
 	ld b,002h		;bd1f
 	ld de,0bfech		;bd21
 	jr pieza		;bd24

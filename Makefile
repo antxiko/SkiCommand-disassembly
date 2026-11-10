@@ -86,7 +86,7 @@ clean:
 # Lo jugado y la web
 # ---------------------------------------------------------------------------
 # Las grabaciones de openMSX (work/*.bin) se hacen con
-#   powershell -File tools/lanza_graba.ps1 -guion tools/guiones/X.tcl -salida work/X.bin
+#   powershell -File tools/lanza_graba.ps1 -rom skicommand.rom -guion tools/guiones/X.tcl -salida work/X.bin -ram "0xE800 0x900" -maquina C-BIOS_MSX1_JP
 # Necesitan PIL, numpy y lameenc: el python de Programs.
 PYIMG ?= /c/Users/Antxiko/AppData/Local/Programs/Python/Python313/python.exe
 imagenes: $(ROM)

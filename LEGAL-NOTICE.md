@@ -4,7 +4,7 @@
 
 ## Who owns what
 
-**The game is not ours.** *Ski Command* was made by **Hudson Soft** under licence from **Konami** for the MSX in 1985, on a 16 KB card (Bee Card). All rights over the game remain with
+**The game is not ours.** *Ski Command* was made by **Casio** for the MSX in 1984, on a 16 KB cartridge. All rights over the game remain with
 their holders.
 
 **What is ours** are the tools in this repository, the comments in the listing,
