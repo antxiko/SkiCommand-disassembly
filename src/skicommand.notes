@@ -1,0 +1,1782 @@
+# ======================================================================
+# SKI COMMAND (Casio, 1984) - anotaciones del desensamblado
+# ======================================================================
+# Formato: ver la cabecera de tools/mkasm.py.
+#
+# LA ROM: 16 KB en la pagina 2 (0x8000-0xBFFF). La cabecera es "AB" e INIT
+# (0x8010); el resto de la cabecera, a cero.
+#
+# USA LA BIOS para casi todo: CHGMOD (0x005F), WRTVDP (0x0047), FILVRM
+# (0x0056), LDIRVM (0x005C), LDIRMV (0x0059), RDVRM (0x004A), WRTVRM
+# (0x004D), DISSCR/ENASCR (0x0041/0x0044), GTSTCK (0x00D5), GTTRIG (0x00D8),
+# SNSMAT (0x0141), WRTPSG/RDPSG (0x0093/0x0096). La interrupcion va por el
+# gancho H.TIMI (0xFD9F): el juego escribe alli un "jp" y cambia su direccion
+# (0xFDA0) segun lo que toque. Al acabar, el juego no vuelve a la BIOS con un
+# ret: saca la vuelta de la pila y salta a 0x0D02, el final de la rutina de
+# interrupcion de la BIOS del MSX, y se salta asi la lectura del teclado.
+#
+# EL JUEGO: un comando baja esquiando una pista vista desde atras, con la
+# pista en perspectiva (casillas que se redibujan) y los arboles, las rocas,
+# los esquiadores enemigos y la moto de nieve en sprites o en casillas. El
+# boton 1 dispara y el 2 salta. Cada ronda dura unos 14 x 256 cuadros; al
+# acabar, PATTERN CLEAR y la siguiente.
+#
+# LA RAM, lo que se lee en el listado:
+#   0xE000-0xE7FF  trabajo: dibujos que se giran o se copian antes de ir a la VRAM
+#   0xE800-0xE87F  la tabla de sprites (32 x 4: Y, X, dibujo, color), copiada a 0x1B00 en cada cuadro
+#   0xE800 el esquiador (3 sprites)  0xE810 el disparo  0xE814 los sprites de la moto o de lo que salta
+#   0xE82C los cuatro enemigos (3 sprites cada uno)  0xE860 el objeto que cae (Y, X, dibujo, color)
+#   0xE880 la interrupcion ya esta corriendo  0xE881/0xE882 el contador de cuadros (16 bits;
+#          0xE882 sube cada 256 cuadros y es el tramo de la ronda)
+#   0xE883-0xE88C diez cuentas que la interrupcion sube hasta 0xFF y alli se paran
+#          (0xE884 la espera general, 0xE886 la de los arboles, 0xE887 la de los
+#          enemigos, 0xE889 la de la cancion de la ronda, 0xE88A y 0xE88B la demo y los golpes)
+#   0xE88D un puntero de trabajo (o la posicion del recorrido)  0xE88F el recorrido de la presentacion
+#   0xE891/0xE892 el paso del disparo de la presentacion (Y, X)  0xE893 el dibujo del esquiador
+#   0xE894-0xE89B las cifras de un numero en ASCII  0xE89C la fase de las lineas de la pista (0-9)
+#   0xE89D la direccion (bit 0 derecha, 1 arriba, 2 izquierda, 3 abajo)
+#   0xE89E los botones (bit 0 disparo, bit 1 salto)  0xE89F el disparo ya pulsado
+#   0xE8A0 la Y del esquiador  0xE8A1 su X  0xE8A2 su dibujo  0xE8A3 esta saltando
+#   0xE8A4 el salto ya pulsado  0xE8A5 el disparo va a la moto  0xE8A7 la curva que viene
+#   (bit 7 a la izquierda, el resto la cuenta)  0xE8A8 la curva: -1, 0 o 1
+#   0xE8A9 el azar  0xE8AA la moto esta tocada  0xE8AB toca enemigo especial
+#   0xE8AC-0xE8AE las tres dianas de la presentacion  0xE8B0 diez objetos de la pista (4 bytes:
+#   la direccion en la tabla de nombres, el tipo y el paso)  0xE8D8 el arbol que lleva el enemigo
+#   0xE8DA la moto (Y, X, paso, tipo)  0xE8DE cuantos enemigos hay
+#   0xE8E2 cuatro enemigos (Y, X, paso, tipo)  0xE8F6 el 1UP encendido o apagado
+#   0xE8F8 hay disparo  0xE8F9 la ronda se ha acabado  0xE8FA con que ha chocado el esquiador
+#   0xE8FC el paso de lado de un enemigo  0xE8FD la columna de la pista (0-0x1E: las curvas)
+#   0xE8FE-0xE901 la dificultad de la ronda (4 bytes de 0x84A4)  0xE902 la curva acabada
+#   0xE906 el record  0xE908 la proxima vida extra  0xE90A los puntos (cada uno vale 100)
+#   0xE90C la ronda  0xE90D se ha pasado de la demo a jugar  0xE90E las vidas  0xE914 es la demo
+#   0xF000-0xF05F el motor de sonido: 0xF000 el transporte, 0xF001 el canal, 0xF002 tres canales
+#   de 0x20 bytes (0xF004 el primero suena, 0xF024 el segundo, 0xF044 el tercero)
+
+# ======================================================================
+# EL ARRANQUE Y LA PRESENTACION
+# ======================================================================
+D 0x8000 0x8010 cabecera  "AB", INIT (0x8010) y el resto de la cabecera a cero
+F 0x8000 2,w,12
+B 0x8010 INIT: el sonido callado, SCREEN 2, el registro 1, el record y la presentacion.
+L 0x8010 init                      El arranque
+C 0x8011 la pila, por debajo de la zona de trabajo de la BIOS
+C 0x8014 el sonido a cero
+C 0x8019 SCRMOD = 2...
+C 0x801C ...y CHGMOD: SCREEN 2
+C 0x801F el registro 1 a 0xE2: 16 K, pantalla encendida, interrupciones, sprites de 16x16
+C 0x8022 WRTVDP
+C 0x8025 el borde (BDRCLR) negro...
+C 0x802A ...con CHGCLR
+C 0x802D el record empieza en 100 (10.000 en pantalla)
+C 0x8033 DISSCR: la pantalla apagada mientras se dibuja
+L 0x8036 presentacion              La presentacion: CASIO y SKI COMMAND en letras grandes, PUSH TRIGGER y la demo
+C 0x8036 la primera vida extra a los 100 (10.000)
+C 0x803C la tabla de nombres a cero
+C 0x803F la interrupcion, solo la musica
+C 0x8042 la RAM de la partida a cero
+C 0x8045 sin puntos...
+C 0x8048 ...ni ronda...
+C 0x804B ...ni demo
+C 0x8051 cuatro vidas
+C 0x8053 (tres de reserva y la que juega)
+C 0x8056 los sprites fuera de la pantalla
+C 0x8059 el color de las letras grandes: 0xF1, blanco sobre negro...
+C 0x805F ...los 2 KB del primer tercio
+C 0x8064 los dibujos de las letras grandes (0xB774, 28 letras)
+C 0x8070 y los de las letras pequenas (0xB7F4, a partir de la letra 0x30)
+C 0x807C copia el primer tercio de dibujos y colores a los otros dos
+C 0x807F otra vez los colores: 0x71, azul claro sobre negro
+C 0x808A los seis carteles de la presentacion (0x84BC)...
+C 0x8090 ...direccion y longitud...
+C 0x8093 (la longitud es un byte: el puntero vuelve atras uno)
+C 0x8096 ...y el texto a la tabla de nombres
+C 0x809C la RAM de la partida a cero
+C 0x809F ENASCR
+C 0x80A2 el contador de cuadros a cero
+L 0x80A8 espera_titulo             Espera el boton 1, o que pasen 512 cuadros: entonces empieza la demo
+C 0x80A8 el contador de cuadros, la parte alta...
+C 0x80AB ...a los 512 cuadros...
+C 0x80AF ...es la demo
+C 0x80B2 la demo empieza en la ronda 1...
+C 0x80B4 ...con una vida
+C 0x80BC lee el mando
+C 0x80BF el boton 1...
+C 0x80C2 ...en el acarreo
+L 0x80C5 empieza                   Empieza una partida (o la demo): la ronda siguiente
+C 0x80C5 aun no se ha pasado de la demo a jugar
+L 0x80CD ronda                     Una ronda: carga los dibujos de la pista, el marcador y el cartel ROUND
+C 0x80CD DISSCR
+C 0x80D0 la interrupcion, solo la musica
+C 0x80D3 los dibujos de la pista (0x9FED): 28 casillas...
+C 0x80D9 ...a las primeras de la tabla de dibujos
+C 0x80DF el suelo de la pista (0xA00D): 18 casillas...
+C 0x80E5 ...giradas (cada casilla, de lado: 0x96DA)...
+C 0x80E8 ...en 0xE000...
+C 0x80EC ...y detras de las de la pista
+C 0x80F5 sus colores (0xADFD)
+C 0x8101 y los del suelo (0xAE1D)
+C 0x810D el resto de colores: 0xF4, blanco sobre azul
+C 0x8118 la nieve de los lados (0xAA4D, 59 casillas desde la 0x80)...
+C 0x8124 ...y sus colores (0xAC25)
+C 0x8130 copia el primer tercio a los otros dos
+C 0x8133 los dibujos del marcador (0xA0CD, 32 casillas desde la 0x80)
+C 0x813F y sus colores: 0xF5, blanco sobre azul claro...
+C 0x814A ...y otro tramo igual
+C 0x8155 los de las cifras (0xAEDD)
+C 0x8161 y los colores de las letras grandes (0xAEF5)
+C 0x816D los sprites (0xA1CD y 0xA34D)
+C 0x8170 la espera: 128 cuadros
+C 0x8175 si es la demo, sin cartel
+C 0x817A la tabla de nombres a cero
+C 0x817D fila 7, columna 8: ROUND...
+C 0x8180 ...(0x8551, 15 letras)
+C 0x8189 ...y la ronda, en la columna 14
+C 0x818F ENASCR
+L 0x8192 espera_cartel             Espera a que la cuenta 0xE884 llegue a 0xFF
+C 0x819B la tabla de nombres a cero
+C 0x819E la pista: 16 filas de 25 casillas, desde la fila 8...
+C 0x81A8 ...con la casilla 2 (la pista lisa)
+C 0x81B5 la nieve de la izquierda: 11 filas en escalera...
+C 0x81C0 ...con la casilla 3, cada fila una menos
+C 0x81D1 la de la derecha: 11 filas, desde la columna 14...
+C 0x81E5 ...bajando una columna mas en cada fila
+C 0x81ED el monte del fondo (0x9187)
+C 0x81F0 el marcador
+C 0x81F3 la RAM de la partida a cero
+C 0x81F6 los sprites del esquiador (0x8465: tres sprites)...
+C 0x8201 ...y su Y, su X y su dibujo
+C 0x8209 la pista empieza recta (columna 3)
+C 0x820E la parte alta del contador de cuadros: se pasa de la demo?
+C 0x8214 los dibujos de la nieve del tramo
+C 0x8217 sin interrupciones mientras se pinta
+C 0x8218 el contador de cuadros a cero
+C 0x821C las lineas de la pista
+C 0x821F el esquiador
+C 0x8222 los sprites
+C 0x8225 ENASCR
+C 0x8228 la ronda 1 y no la demo? (Z)...
+C 0x822C ...la musica de salida
+C 0x8230 la ronda...
+L 0x8231 ronda_dificultad          La dificultad: la ronda, de 2 en 2 hasta menos de 6, por 4, en la tabla 0x84A4
+C 0x8239 (por cuatro)
+C 0x823E la tabla de dificultad (0x84A4)
+C 0x8242 a 0xE8FE: cuatro bytes
+C 0x824A la musica de la ronda, dentro de 128 cuadros
+C 0x824F la interrupcion de la partida (0x8569)
+L 0x8255 bucle_ronda               El bucle de la ronda: todo va en la interrupcion; aqui se espera a que se acabe o a perder una vida
+C 0x8255 se ha acabado la ronda?...
+C 0x825A ...PATTERN CLEAR
+C 0x825D ha chocado el esquiador?
+C 0x8262 la interrupcion, solo la musica
+C 0x8265 la parte alta del contador de cuadros...
+C 0x8268 ...pasa a 0xE90D (la demo se acaba al chocar)
+C 0x826B la musica del choque
+C 0x826E los sprites fuera de la pantalla (0xC0), salvo los cuatro primeros...
+C 0x827B el esquiador cayendo (0xA9ED, tres dibujos)...
+C 0x827E ...a los sprites 0x80-0x82
+C 0x8287 la espera: 8 cuadros
+C 0x828C sin paso de lado...
+C 0x8290 ...salvo si estaba saltando...
+C 0x8296 ...entonces 3
+C 0x829B el dibujo del esquiador en el suelo...
+C 0x82A0 ...y el del recorrido
+C 0x82A5 cinco vueltas de la caida
+L 0x82A8 caida_espera              La caida: pinta el esquiador y espera la cuenta
+C 0x82B4 el paso de lado...
+C 0x82B8 ...a la Y
+C 0x82BF otros 8 cuadros
+C 0x82C4 el dibujo siguiente...
+C 0x82C8 ...hasta el 0x0A...
+C 0x82CC ...y vuelta al 9
+C 0x82D4 la vuelta siguiente
+L 0x82D7 caida_fin                 Despues de la caida: la cuenta, los sprites fuera y a esperar la musica
+C 0x82DD los sprites fuera de la pantalla
+L 0x82E3 caida_musica              Espera a que la musica deje de sonar
+C 0x82E8 una vida menos...
+C 0x82EC ...y si quedan, otra vez la ronda
+C 0x82EF GAME OVER: la tabla de nombres a cero
+C 0x82F2 el marcador
+C 0x82F5 GAME OVER (0x8560) en la fila 7, columna 8
+C 0x8301 la musica de GAME OVER
+L 0x8304 game_over_espera          Espera a que acabe la musica y vuelve a la presentacion
+L 0x830C pattern_clear             PATTERN CLEAR: la ronda superada y la presentacion del bonus
+C 0x830C la interrupcion, solo la musica
+C 0x830F PATTERN CLEAR (0x8544) en la fila 2, columna 7
+C 0x831B su musica
+L 0x831E pattern_clear_espera      Espera a que acabe la musica
+C 0x8323 la tabla de nombres a cero
+C 0x8326 DISSCR
+C 0x8329 los dibujos de la presentacion del bonus (0xA90D): el esquiador de cara, girado...
+C 0x8333 ...(0x9635: cada sprite de 16x16 de lado)
+C 0x8337 tres copias mas, cada una girada otra vez (0x967D)
+C 0x8340 y sus dibujos, a 0x3B00 (0xA9CD)
+C 0x834C las casillas del bonus (0x99C7, 110 casillas desde la 0x80)
+C 0x8358 los colores: 0xF4, blanco sobre azul...
+C 0x8363 ...0xF5...
+C 0x836E ...0xFE, blanco sobre gris...
+C 0x8379 ...0xE5, gris sobre azul claro...
+C 0x8384 ...0xA4, amarillo sobre azul
+C 0x838F los colores de las casillas del bonus (0x9D37)
+C 0x839B los de las letras grandes
+C 0x83A7 copia el primer tercio a los otros dos
+C 0x83AA la tabla de nombres: 24 filas de 25 casillas 0x80 (el cielo)
+C 0x83C1 el monte: ocho filas, de la casilla 4 a la 0x0B
+C 0x83DF el campo del bonus (0x9EDF): 13 filas de 10 casillas, desde la fila 6...
+C 0x83FE ...cinco filas de 25...
+C 0x8417 ...y tres de 5 en la fila 16, columna 20: las tres dianas
+C 0x8433 el marcador
+C 0x8436 ENASCR
+C 0x8439 la musica del bonus
+C 0x843C la RAM de la partida a cero
+C 0x843F el recorrido del esquiador empieza en (Y 0x18, X 0)...
+C 0x8445 ...y sigue la tabla 0x9507
+C 0x844B los sprites del bonus (0x8478: once sprites)
+C 0x8456 la interrupcion del bonus (0x8599)
+L 0x845C bonus_espera              Espera a que el esquiador acabe el recorrido y pasa a la ronda siguiente
+D 0x8465 0x8478 sprites_esquiador  Los tres sprites del esquiador al empezar (Y 0xC0, X 0, dibujo, color) y su Y, X y dibujo
+F 0x8465 4
+D 0x8478 0x84A4 sprites_bonus  Los once sprites del bonus: el esquiador, el disparo y las tres dianas (Y, X, dibujo, color)
+F 0x8478 4
+D 0x84A4 0x84BC dificultad  Seis dificultades (4 bytes): 0xE8FE 0 si sale la moto, 0xE8FF el paso de los enemigos, 0xE900 el de lo que cae (0xFF: nada), 0xE901 la mascara de cuadros de la pista (15 o 7)
+F 0x84A4 4
+D 0x84BC 0x8544 carteles  Los seis carteles de la presentacion: direccion en la tabla de nombres, longitud y letras (CASIO y SKI COMMAND en letras grandes, PUSH TRIGGER 1 TO START GAME, COPYRIGHT 1984 @ CASIO)
+F 0x84BC 3,12,3,12,3,22,3,22,3,28,3,22
+D 0x8544 0x8569 textos  PATTERN CLEAR, ROUND y GAME OVER (en la fuente del juego la O es un 0)
+
+# ======================================================================
+# LAS INTERRUPCIONES: el juego entero corre en ellas
+# ======================================================================
+B 0x8569 La interrupcion de la partida (0xFDA0 = 0x8569): si la anterior no ha acabado, solo la musica; si no, un cuadro entero de juego.
+L 0x8569 irq_partida               La interrupcion de la partida
+C 0x8569 la anterior aun esta corriendo?...
+C 0x856D ...entonces solo la musica y fuera
+C 0x856F 0xFF: corriendo
+C 0x8573 los sprites a la VRAM
+C 0x8576 cada 256 cuadros, los dibujos de la nieve del tramo
+C 0x8579 las lineas de la pista y las curvas
+C 0x857C los arboles y las rocas
+C 0x857F la musica
+C 0x8582 el esquiador: mando, salto y sus sprites
+C 0x8585 el disparo
+C 0x8588 los choques del esquiador
+C 0x858B la ronda: el fin, la musica, las curvas y los objetos nuevos
+C 0x858E la moto
+C 0x8591 los enemigos
+L 0x8594 irq_fin                   El marcador, los contadores y la vuelta a la BIOS
+B 0x8599 La interrupcion del bonus (0xFDA0 = 0x8599): el esquiador hace su recorrido y dispara a las tres dianas.
+L 0x8599 irq_bonus                 La interrupcion del bonus
+C 0x8599 los sprites a la VRAM
+C 0x859C el recorrido del esquiador
+C 0x859F el disparo
+C 0x85A2 las dianas que giran
+C 0x85A5 el marcador
+B 0x85A8 La interrupcion de siempre (0xFDA0 = 0x85A8): la musica y los contadores.
+L 0x85A8 irq_musica                La interrupcion de siempre
+C 0x85A8 la musica
+L 0x85AB contadores                El contador de cuadros y las diez cuentas
+C 0x85AB el contador de cuadros: la parte baja...
+C 0x85B2 ...y la alta
+C 0x85B4 las diez cuentas de 0xE884...
+C 0x85B6 ...suben...
+C 0x85B9 ...y se paran en 0xFF
+C 0x85BD la interrupcion ha acabado
+C 0x85C1 fuera la vuelta a la BIOS...
+C 0x85C2 ...y al final de su rutina de interrupcion (0x0D02): sin leer el teclado
+L 0x85C5 irq_solo_musica           La interrupcion llega con la anterior aun corriendo: la musica y a 0x0D02
+C 0x85C5 fuera la vuelta a la BIOS...
+C 0x85C6 ...y la musica vuelve a 0x0D02
+L 0x85CA musica_cuadro             La musica de este cuadro: en la demo, callada
+C 0x85CA es la demo?...
+C 0x85CD ...silencio
+C 0x85D0 un cuadro de los tres canales
+L 0x85D3 sprites_vram              La tabla de sprites (0xE800) a la VRAM (0x1B00); en la demo, ademas, el mando
+C 0x85D3 los 128 bytes...
+C 0x85D6 ...a la tabla de atributos
+C 0x85DF es la demo?
+C 0x85E4 en la demo, un boton...
+C 0x85E9 ...vuelve a la presentacion
+C 0x85EC la demo cambia de direccion cuando acaba su cuenta
+L 0x85F1 mando                     Lee el mando: la direccion (o la de la demo) y los botones
+C 0x85F1 saltando no se cambia de direccion
+C 0x85F7 la cuenta del golpe aun no ha acabado?
+C 0x85FC es la demo?
+C 0x8601 la demo: una espera al azar...
+C 0x8609 ...y una direccion al azar
+L 0x860E mando_direccion           La direccion: la del teclado, la del mando 1 y la del 2, juntas
+C 0x860E el teclado (GTSTCK 0)...
+C 0x8613 ...el mando 1...
+C 0x861A ...y el mando 2
+L 0x8620 mando_guarda              Guarda la direccion
+L 0x8623 mando_botones             Los botones: en la demo, el disparo casi siempre y el salto de vez en cuando
+C 0x8628 la demo dispara...
+C 0x862A ...y una vez de cada 16...
+C 0x8631 ...salta
+L 0x8635 mando_botones_lee         Los botones de verdad
+L 0x8638 mando_botones_guarda      Guarda los botones
+B 0x863D Los botones: el 1 es la barra o el disparo de cualquier mando; el 2, el segundo boton de un mando o la tecla GRAPH.
+L 0x863D lee_botones               Lee los botones: B bit 0 el disparo, bit 1 el salto
+C 0x863D GTTRIG 0: la barra...
+C 0x8643 ...GTTRIG 1: el boton 1 del mando 1...
+C 0x864D ...GTTRIG 2: el del mando 2
+C 0x8658 bit 0: el disparo
+C 0x865A GTTRIG 3 y 4: el segundo boton de los dos mandos...
+C 0x866A ...y la fila 6 del teclado (SNSMAT): la tecla GRAPH (bit 2)
+C 0x867A bit 1: el salto
+L 0x867D direccion                 La direccion de un mando (GTSTCK A) en los bits del juego (tabla 0x868D)
+C 0x867F GTSTCK
+D 0x868D 0x8696 direcciones  De la direccion de GTSTCK (0 nada, 1 arriba... 8 arriba a la izquierda) a los bits del juego (0 derecha, 1 arriba, 2 izquierda, 3 abajo)
+F 0x868D 9
+B 0x8696 La ronda: el paso de la demo a la partida, el fin de la ronda, la musica y lo que va saliendo en la pista.
+L 0x8696 ronda_cuadro              Un cuadro de la ronda
+C 0x8696 la ronda 1 y no es la demo?
+C 0x869B la musica sigue sonando?
+C 0x86A0 no: ya se juega (0xE90D = 1)
+L 0x86A4 ronda_musica              Si la musica se ha callado, la de la ronda
+C 0x86A7 la musica de la ronda, otra vez
+C 0x86AA la cuenta de la musica ha acabado?
+C 0x86B0 el tramo de la ronda...
+C 0x86B3 ...antes del 12: la ronda sigue
+C 0x86B7 del 12 al 13, sin curvas
+C 0x86BB del 14 en adelante: sin moto...
+C 0x86C2 ...ni enemigos...
+C 0x86C8 ...la ronda se acaba
+L 0x86CC ronda_recta               Al final de la ronda la pista se pone recta: columna 3 y la curva acabada
+C 0x86D2 ya estaba recta?
+C 0x86DA la pista...
+C 0x86DD ...el monte sin curva...
+C 0x86E0 ...y el monte recto
+C 0x86E4 la columna y la curva acabada
+C 0x86E7 sin curva
+L 0x86EF ronda_fin_cuadro          Fuera del cuadro: el marcador y los contadores
+C 0x86EF fuera la vuelta...
+C 0x86F0 ...y al final de la interrupcion
+L 0x86F3 ronda_curva               Una curva nueva, a veces: a la izquierda, a la derecha o hacia el centro
+C 0x86F3 ya hay una curva en marcha?
+C 0x86F9 la cuenta de las curvas ha acabado?
+C 0x86FF y, al azar, una vez de cada 256
+C 0x8705 cuatro pasos de curva...
+C 0x8707 ...en la curva en que estaba...
+C 0x870D ...si va a la derecha, vuelve...
+C 0x8710 ...si va a la izquierda, vuelve
+L 0x8712 ronda_curva_azar          Recta: a un lado al azar
+L 0x8718 ronda_curva_izquierda     La curva, a la izquierda (bit 7)
+L 0x871A ronda_curva_guarda        Guarda la curva que viene
+L 0x871E ronda_objeto              Un objeto nuevo en la pista cuando acaba su cuenta: un hueco libre en 0xE8B0
+C 0x871E la cuenta de los arboles ha acabado?
+C 0x8723 diez huecos...
+L 0x8728 ronda_objeto_hueco        Busca un hueco libre
+C 0x872C libre si la direccion es 0
+L 0x8734 ronda_objeto_tipo         El tipo de objeto: al azar de 0 a 19 (0x8793: 20 tipos de 3 bytes)
+C 0x873B el arbol del enemigo especial ya esta?
+C 0x8741 toca el enemigo especial?
+L 0x8747 ronda_objeto_especial     El enemigo especial sale de un arbol: un tipo de 5 a 19
+C 0x8750 ya no toca
+C 0x8755 el hueco...
+C 0x8759 ...es el del enemigo especial
+L 0x875D ronda_objeto_ronda        En las tres primeras rondas, sin los tipos 10 a 14
+L 0x876D ronda_objeto_pon          El objeto: su columna (0x192A + el primer byte), su tipo y su paso
+C 0x876E tres bytes por tipo
+C 0x8778 la fila 9, columna 10 de la tabla de nombres...
+C 0x877B ...mas la columna del tipo
+C 0x8781 la direccion...
+C 0x8785 ...el tipo y su paso
+C 0x878D la cuenta del siguiente: 112 cuadros
+D 0x8793 0x87DE objetos  Los 20 tipos de objeto de la pista (3 bytes): la columna de salida, el tipo (arbol, roca, mogul, bandera...) y el paso
+F 0x8793 3
+B 0x87DE El esquiador: el salto, la direccion y sus tres sprites.
+L 0x87DE esquiador                 El esquiador de este cuadro
+C 0x87DE saltando?
+C 0x87E5 el boton del salto...
+C 0x87EC ...ya pulsado?
+C 0x87F2 un salto...
+C 0x87F9 ...con su sonido
+C 0x87FC la cuenta del salto, desde 0
+C 0x8800 el dibujo del salto
+L 0x8806 esquiador_suelta          El boton del salto, suelto
+L 0x880A esquiador_mueve           Mueve el esquiador con la direccion
+C 0x8813 en el aire, el dibujo no cambia con la direccion
+L 0x881F esquiador_sprites         Los tres sprites del esquiador (0xE800): su Y, su X y el dibujo (0x8910, 12 bytes por dibujo)
+C 0x8825 por doce...
+C 0x882E tres sprites en el aire...
+C 0x8836 ...cuatro en el suelo (la sombra)
+L 0x883B esquiador_sprite          Un sprite: Y + dy, X + dx, dibujo y color
+L 0x8851 esquiador_salto           En el aire: la sombra 8 puntos por encima y el salto
+C 0x8851 la X...
+C 0x8854 ...menos 8: la de la sombra
+L 0x885F salto                     El salto, por la cuenta 0xE884: sube, se queda y baja, con sus dibujos
+C 0x8862 los dos primeros cuadros, nada
+C 0x8865 el segundo: el dibujo del salto...
+C 0x886E ...y la sombra pequena
+L 0x8874 salto_sube                Del 2 al 34: sube
+C 0x8878 en el 27, la sombra mas pequena
+L 0x8881 salto_sube_paso           Un punto arriba
+L 0x8889 salto_baja                Del 43 al 74: baja
+C 0x8890 en el 51, la sombra mediana
+L 0x8899 salto_baja_paso           Un punto abajo
+L 0x88A1 salto_cae                 En el 75: el dibujo de la caida y la sombra grande
+L 0x88B0 salto_fin                 Del 91 en adelante: en el suelo, el salto se acaba
+C 0x88BA ya no salta...
+C 0x88BE ...y la cuenta se para
+C 0x88C2 y no se mueve en este cuadro
+L 0x88C4 mueve                     Mueve el esquiador con la direccion B: la Y (abajo de dos en dos, cada cuatro cuadros) y la X
+C 0x88C5 en el aire...
+C 0x88CB ...se mueve en los cuadros pares...
+C 0x88D1 ...con el dibujo de frente
+L 0x88D4 mueve_suelo               En el suelo
+C 0x88D5 arriba...
+C 0x88D9 ...un punto
+L 0x88DA mueve_abajo               Abajo: dos puntos cada cuatro cuadros
+L 0x88E8 mueve_abajo_fin           La X
+L 0x88E9 mueve_x                   La X: izquierda, dibujo 3; derecha, dibujo 6
+L 0x88F1 mueve_derecha             A la derecha
+L 0x88F8 mueve_dibujo              El dibujo del esquiador, y la Y entre 0x88 y 0xA0 en el suelo
+C 0x8903 la Y...
+C 0x8904 ...no por encima de 0x88...
+C 0x890A ...ni por debajo de 0xA0
+D 0x8910 0x8991 dibujos_esquiador  Los once dibujos del esquiador: cuatro sprites de 3 bytes (dy, dx, dibujo)
+F 0x8910 12
+B 0x8991 Los choques del esquiador: con la nieve de los lados, los enemigos, los arboles y las rocas, y lo que cae.
+L 0x8991 choques                   Los choques del esquiador
+C 0x8991 la X...
+C 0x8994 ...fuera de la pista por los lados?...
+C 0x899A ...ha chocado
+L 0x899E choques_suelo             En el aire, ni enemigos ni pista
+C 0x89A6 su Y y su X...
+C 0x89A9 ...contra los cuatro enemigos
+L 0x89AF choques_enemigo           Un enemigo: si esta en marcha y a menos de 12 en Y y 13 en X, choque
+L 0x89CD choques_siguiente         El enemigo siguiente
+L 0x89D7 choques_pista             La casilla de la pista debajo del esquiador (tres filas mas abajo)
+C 0x89E1 RDVRM
+C 0x89E4 una bandera de la pista (casillas 0xA5-0xAE)?...
+C 0x89EC ...si la cuenta del golpe ha acabado...
+L 0x89F2 choques_rebota            Un golpe: la direccion se vuelve al azar durante 32 cuadros
+L 0x8A05 choques_arriba            La casilla de encima
+C 0x8A0C tambien una bandera?
+L 0x8A16 choques_tipo              Que casilla es: 0xBA la del enemigo especial; 0x99-0x9E, nieve que no choca
+C 0x8A1A el arbol del enemigo especial ya esta?...
+C 0x8A1F ...si no, que salga
+L 0x8A24 choques_nieve             0x99-0x9E: nieve, sin choque
+L 0x8A2C choques_casilla           0x00-0x02, la pista; otra cosa, choque
+L 0x8A30 choque                    Choque: con que (0xE8FA)
+L 0x8A34 choques_cae               Lo que cae (0xE860), a menos de 8 en Y y en X: choque
+B 0x8A4F La moto de nieve: sale de vez en cuando, baja hacia el esquiador y explota cuando la tocan.
+L 0x8A4F moto                      La moto de este cuadro
+C 0x8A4F tocada?
+C 0x8A55 cada ocho cuadros...
+C 0x8A5E fuera los sprites de la moto
+C 0x8A69 la explosion sube un punto...
+C 0x8A6F ...hasta la Y 0x30...
+C 0x8A74 ...y entonces la moto se va
+C 0x8A80 la explosion: dos sprites en su sitio
+L 0x8AA2 moto_marcha               En marcha
+L 0x8AA5 moto_fin                  Y lo que cae
+L 0x8AA8 moto_mueve                Mueve la moto cada ocho cuadros: hacia la X del esquiador, y sube
+C 0x8AB8 no hay moto?
+C 0x8ABC fuera sus sprites
+C 0x8ABF hacia la X del esquiador...
+C 0x8AC5 ...a la izquierda o a la derecha
+C 0x8ACD dos puntos arriba
+C 0x8ACF el dibujo, segun la Y
+C 0x8AD4 por arriba de la pantalla: se va...
+C 0x8AE0 ...con su sonido
+L 0x8AE4 moto_dibujo               Cuanto mas lejos, mas pequena: cuatro tamanos y mas lenta
+L 0x8AF6 moto_guarda               Guarda la moto
+L 0x8AFB moto_sale                 Una moto nueva: si la ronda la tiene, una vez de cada 16
+C 0x8AFB esta ronda tiene moto?
+C 0x8B06 la moto sale por el centro (0x8BCF)...
+C 0x8B0F ...o por un lado, segun la curva...
+C 0x8B15 ...(0x8BD3 o 0x8BD7)
+L 0x8B18 moto_sale_pon             Su Y, su X y su paso
+L 0x8B20 moto_sale_tipo            El tipo, al azar de 1 a 3 (0x8BDB)
+C 0x8B31 su sonido
+L 0x8B34 moto_sprites              Los sprites de la moto: su tamano (0x8BDE) y los dibujos (0x8BEE)
+C 0x8B3C la tabla de dibujos de su tipo...
+C 0x8B4F ...y la primera palabra, el desplazamiento
+C 0x8B5B el ancho y el alto en sprites
+C 0x8B61 en 0xE814
+L 0x8B64 moto_fila                 Una fila de sprites
+L 0x8B66 moto_sprite               Un sprite: Y, X, dibujo y color
+C 0x8B75 el siguiente, 16 a la derecha
+C 0x8B7D la fila siguiente, 16 abajo
+L 0x8B85 cae                       Lo que cae de la moto (0xE860): baja hasta abajo de la pantalla
+C 0x8B85 esta ronda tiene cosas que caen?
+C 0x8B8A su Y...
+C 0x8B91 ...en la pantalla?
+C 0x8B95 no: uno nuevo una vez de cada 64...
+C 0x8B9B ...si la moto esta en el paso 1...
+C 0x8BA5 ...desde la moto...
+C 0x8BA9 ...con su dibujo y color
+L 0x8BB0 cae_baja                  Baja con el paso de la ronda; por debajo de 0x50, un punto mas
+C 0x8BBF hasta 0xB8...
+C 0x8BC3 ...y fuera
+L 0x8BC9 cae_guarda                Guarda lo que cae
+D 0x8BCF 0x8BDB moto_salidas  La moto sale de tres sitios (Y, X, paso): el centro, la izquierda y la derecha
+F 0x8BCF 3,1,3,1,3,1
+D 0x8BDB 0x8BDE moto_tipos  Los tres tipos de moto
+D 0x8BDE 0x8BEE moto_tamanos  El tamano de la moto en sprites (ancho, alto), por su dibujo
+F 0x8BDE 2
+D 0x8BEE 0x8C24 moto_dibujos  Los dibujos de la moto: punteros (0x8BEE) a su desplazamiento y sus numeros de dibujo
+F 0x8BEE w8,3
+
+# ======================================================================
+# LOS ENEMIGOS Y EL DISPARO
+# ======================================================================
+B 0x8C24 Los cuatro esquiadores enemigos (0xE8E2, 4 bytes: Y, X, paso, tipo): salen de abajo, suben esquivando y se acercan al esquiador.
+L 0x8C24 enemigos                  Los cuatro enemigos, uno cada cuatro cuadros
+C 0x8C27 sus sprites, desde 0xE82C (12 bytes cada uno)
+L 0x8C2D enemigos_uno              Un enemigo
+C 0x8C38 el siguiente enemigo...
+C 0x8C3C ...y sus sprites
+L 0x8C44 enemigo                   Un enemigo (HL su entrada, IY sus sprites)
+C 0x8C45 uno de cada cuatro cuadros
+C 0x8C4C fuera sus tres sprites (0xC0)...
+C 0x8C5B el enemigo en curso
+C 0x8C61 no hay enemigo?...
+C 0x8C63 ...uno nuevo, quiza
+C 0x8C66 el tipo 0 es un enemigo derribado...
+C 0x8C6A ...que cae: su paso sube de 16 en 16...
+C 0x8C72 ...y al acabar, fuera
+C 0x8C7B los dibujos del derribado (0x8E3F)
+L 0x8C82 enemigo_mueve             Un enemigo en marcha: mira la pista que tiene delante (RDVRM) y la esquiva
+C 0x8C89 ...la casilla...
+C 0x8C8C ...dos filas mas abajo
+C 0x8C95 sin paso de lado
+C 0x8C9A en la fila 0x1A, tambien la casilla de la derecha
+L 0x8CA5 enemigo_libre             Nada delante: si esta por debajo de 0x50 en la pantalla, va hacia el esquiador
+C 0x8CAE hacia la X del esquiador
+C 0x8CB6 ya esta a menos de 8: recto
+L 0x8CBF enemigo_esquiva           Algo delante: a un lado al azar
+L 0x8CC6 enemigo_derecha           A la derecha, si alli no hay nada
+C 0x8CCB cuatro puntos a la derecha...
+C 0x8CCF ...y la casilla de alli
+L 0x8CDD enemigo_izquierda         A la izquierda, si alli no hay nada
+C 0x8CF2 tampoco: vuelve a probar la derecha
+C 0x8D09 todo ocupado: frena (la Y retrocede lo que sube la pista)
+L 0x8D15 enemigo_recto             Recto
+L 0x8D16 enemigo_sube              Sube con la pista (0xE8FF) y su dibujo segun lo cerca que esta: cuatro tamanos
+C 0x8D21 hasta 0x48, el mas pequeno
+C 0x8D27 hasta 0x60...
+C 0x8D2E hasta 0xB0...
+C 0x8D45 por debajo de 0xC8 se va...
+C 0x8D4F ...y hay uno menos
+L 0x8D54 enemigo_guarda            Guarda el enemigo y pinta sus sprites
+L 0x8D59 enemigo_nuevo             Un enemigo nuevo: cuando acaba la cuenta y si la pista no esta acabando, uno de cada 32
+C 0x8D69 uno mas
+C 0x8D6D sale por el centro o por un lado, segun la curva (como la moto)
+L 0x8D7F enemigo_nuevo_pon         Su Y, su X y su paso
+L 0x8D88 enemigo_nuevo_tipo        El tipo, al azar de 1 a 7
+C 0x8D94 el siguiente, dentro de 80 cuadros
+L 0x8D99 enemigo_sprites           Los sprites del enemigo: sus dibujos de 0x8E13
+L 0x8D9D enemigo_sprites_tabla     Los sprites con la tabla IX: cuantos, y por cada uno dy, dx, dibujo y color
+C 0x8DA3 el paso (el tamano)...
+C 0x8DA7 ...y el tipo
+C 0x8DB5 cuantos sprites
+L 0x8DB7 enemigo_sprite            Un sprite: Y + dy, X + dx (el de las piernas, con el paso de lado), dibujo y color del tipo (0x8E03)
+D 0x8E03 0x8E13 colores_enemigos  Los colores de los enemigos: dos por tipo (el del cuerpo y el de las piernas)
+F 0x8E03 2
+D 0x8E13 0x8E5B dibujos_enemigos  Los dibujos de los enemigos: cuatro tamanos (0x8E13) y cuatro del derribado (0x8E3F), cada uno cuantos sprites y dy, dx, dibujo, color
+F 0x8E13 w4,1,4,4,4
+B 0x8E5B El disparo del esquiador: sale con el boton 1 y sube; da a los enemigos (100 puntos), a la moto (200) o a las banderas (1000).
+L 0x8E5B disparo                   El disparo de este cuadro
+C 0x8E5B ya hay uno?
+C 0x8E61 el boton 1, recien pulsado?
+C 0x8E67 sale de la Y y la X del esquiador...
+C 0x8E6D ...con el dibujo 0x54...
+C 0x8E72 ...y el color 1
+C 0x8E7A durante el salto, va a la moto
+L 0x8E82 disparo_tipo              Guarda a que va y su sonido
+L 0x8E88 disparo_vuela             El disparo en el aire: los enemigos o la moto, y sube
+L 0x8E92 disparo_sube              Sube cuatro puntos: lo que hay en la pista
+C 0x8E9D va a la pista
+C 0x8E9F hacia la moto: hasta la Y 0x1C
+L 0x8EA5 disparo_pista             La casilla de debajo: una bandera (0xAF en adelante, no 0xBA) da 1000 puntos
+C 0x8EB4 diez puntos (1000)
+C 0x8EBE su sonido
+C 0x8EC1 el arbol del enemigo especial...
+C 0x8EC8 ...se borra
+L 0x8ED8 disparo_choca             0x80-0xA3, un arbol o una roca: el disparo se para
+L 0x8EE0 disparo_alto              Por encima de 0x40, sigue
+L 0x8EE5 disparo_fuera             Se acaba
+L 0x8EE6 disparo_acaba             El disparo fuera de la pantalla
+L 0x8EF0 disparo_guarda            Guarda la Y; por encima de 0x90, el dibujo pequeno
+L 0x8EFC disparo_enemigos          Contra los enemigos: a menos de 6 en Y y en X
+C 0x8EFC va a la moto?
+C 0x8F02 cinco: los cuatro enemigos y la moto
+C 0x8F0C derribado ya?
+C 0x8F29 su sonido
+C 0x8F2C un punto (100)
+C 0x8F33 un enemigo menos
+C 0x8F3A el enemigo pasa a derribado (tipo 0)...
+C 0x8F3C ...con el bit 7 de su paso
+C 0x8F40 el disparo, fuera
+L 0x8F50 disparo_enemigos_sig      El siguiente
+L 0x8F58 disparo_moto              Contra la moto (0xE8DA): con la moto tocada, el disparo a menos de 8 da una vida
+C 0x8F7C su sonido
+C 0x8F7F una vida mas
+C 0x8F83 el marcador
+C 0x8F86 la moto se va
+L 0x8F94 disparo_moto_tamano       La moto entera: su tamano en sprites, por 8
+C 0x8FC6 el paso de la explosion...
+C 0x8FD0 ...su sonido
+C 0x8FD3 el disparo, fuera
+C 0x8FDC dos puntos (200)
+C 0x8FE9 el ultimo golpe: la moto, tocada
+C 0x8FEF su sonido
+# ======================================================================
+# LA PISTA
+# ======================================================================
+B 0x8FF3 Las lineas de la pista: el suelo baja con diez dibujos de rayas (0x919F y 0x91D1), y las curvas mueven la pista entera de lado.
+L 0x8FF3 pista                     Un cuadro de la pista: las rayas si toca, y la curva
+C 0x8FF6 cada tantos cuadros como diga la dificultad (0xE901)
+C 0x8FFF la fase de las rayas: 0 a 9
+L 0x9008 pista_fase                Las rayas de la izquierda: diez filas de cinco casillas desde la fila 9, columna 0
+C 0x9016 la tabla de la izquierda (0x919F)
+C 0x901A fila 9, columna 0
+L 0x9021 pista_izquierda           Una fila, mas corta cuanto mas arriba
+C 0x9042 LDIRVM
+L 0x9057 pista_izquierda_sig       La fila siguiente, una columna a la derecha
+C 0x9062 las de la derecha (0x91D1), desde la fila 9, columna 15
+L 0x907B pista_derecha             Una fila de la derecha
+L 0x909D pista_derecha_sig         La siguiente, una columna a la izquierda
+L 0x90A8 pista_curva               La curva, cada ocho cuadros: la columna de la pista va de 0 a 0x1E
+C 0x90B7 a la derecha o a la izquierda?
+C 0x90C4 el ultimo paso: el monte, recto
+C 0x90C7 la curva cambia
+C 0x90CD el monte de la curva a la derecha
+L 0x90E7 pista_curva_recta         Vuelve a recta
+L 0x90EA pista_curva_fin           La curva acabada
+L 0x90EE pista_curva_paso          Un paso: la columna una mas
+L 0x90FC pista_curva_izq           A la izquierda
+L 0x9123 pista_curva_izq_recta     Vuelve a recta
+L 0x9126 pista_curva_izq_fin       La curva acabada
+L 0x912A pista_curva_izq_paso      Un paso: la columna una menos
+L 0x9136 pista_columna             Guarda la columna
+L 0x9139 pista_pinta               Las ocho filas de arriba de la pista (0xE000), desde la columna de la curva, a la tabla de nombres
+C 0x9149 la columna...
+C 0x9151 ...hasta 25 casillas
+C 0x9159 LDIRVM
+C 0x915E y lo que queda, desde el principio de la fila
+L 0x916E pista_pinta_sig           La fila siguiente
+L 0x917C monte_borra               El monte del fondo: siete casillas vacias en la fila 8
+L 0x9187 monte                     El monte del fondo recto: cinco casillas de cada lado en la fila 8
+D 0x919F 0x9203 rayas  Las rayas de la pista: la izquierda (0x919F) y la derecha (0x91D1), diez filas de cinco casillas
+F 0x919F 5
+B 0x9203 Los objetos de la pista (0xE8B0): arboles, rocas, moguls y banderas que bajan con la pista y crecen al acercarse.
+L 0x9203 objetos                   Los diez objetos, cada tantos cuadros como diga la dificultad
+L 0x9212 objetos_uno               Uno
+L 0x9218 objeto                    Un objeto: lo borra, baja una fila y lo pinta con el dibujo de su tamano
+C 0x921D libre?
+C 0x9221 si ya se ha pintado...
+C 0x9224 ...se borra
+C 0x9227 la bajada por paso (0x92D8): bit 7 crece una talla
+C 0x9233 cuantas columnas se mueve...
+C 0x923D ...y el bit 7: una talla mas
+L 0x9241 objeto_paso               Un paso mas; cada 16, se acaba
+C 0x9249 el del enemigo especial...
+C 0x924D ...deja sitio para otro
+L 0x9251 objeto_fin                Se acaba
+L 0x9255 objeto_pinta              Pinta el objeto (si sigue) y lo guarda
+L 0x925E objeto_libre              Hueco libre: el siguiente
+L 0x9265 objeto_borra              Borra un objeto de la tabla de nombres: su tamano (0x9368) en casillas 2 (pista lisa)
+L 0x928F objeto_dibuja             Dibuja un objeto: su tamano (0x9368) y sus casillas (0x9390)
+C 0x92B2 WRTVRM
+L 0x92C6 en_pista                  CY si HL esta dentro de la pista (columna < 25, fila < 0x1B00)
+L 0x92D0 tabla_par                 BC = la palabra numero C de la tabla HL
+D 0x92D8 0x9368 objetos_pasos  La bajada de cada objeto por paso: 16 bytes por tipo (columnas que se mueve; bit 7, una talla mas)
+F 0x92D8 16
+D 0x9368 0x9390 objetos_tamanos  El tamano de cada talla de objeto en casillas (ancho, alto)
+F 0x9368 2
+D 0x9390 0x9435 objetos_dibujos  Las casillas de cada objeto y talla: punteros (0x9390) y las casillas, fila a fila
+F 0x9390 w20,8
+# ======================================================================
+# EL MARCADOR
+# ======================================================================
+L 0x9435 marcador                  El marcador: el record, la vida extra, los puntos y el 1UP que parpadea
+C 0x9435 el record...
+C 0x943D ...menor que los puntos?
+C 0x9442 no mas de 9999 (999.900)
+C 0x944B el record nuevo...
+C 0x944E ...en la fila 4, columna 25
+L 0x9454 marcador_vida             Una vida extra cada 100 puntos (10.000)
+C 0x9460 una vida mas...
+C 0x9464 ...y la siguiente, 100 mas alla
+C 0x946B su sonido
+L 0x9471 marcador_puntos           Los puntos en la fila 8, columna 25
+C 0x947A cada 16 cuadros...
+C 0x9480 ...el 1UP se enciende o se apaga
+D 0x949B 0x94A1 uno_up  "1UP" y tres espacios
+L 0x94A1 recorrido                 El recorrido del esquiador en el bonus (0x9507): de punto a punto, de dos en dos cuadros
+C 0x94A6 el punto al que va
+C 0x94AA 0xFF: el recorrido se acaba
+L 0x94B2 recorrido_paso            Un paso (dy, dx); al llegar a su destino, el punto siguiente
+L 0x94D1 recorrido_pinta           Los tres sprites del esquiador, con el dibujo del punto
+C 0x94EF por debajo de 0x48...
+C 0x94F5 ...en 0x48, el sonido del disparo...
+D 0x9507 0x9535 recorrido_bonus  El recorrido del bonus: puntos de 7 bytes (dy, dx, destino Y X, dibujo); 0xFF acaba
+F 0x9507 7
+L 0x9535 bonus_disparo             El disparo del bonus: sube con su paso; si da en una diana (casilla 0x86), sus puntos
+C 0x9538 no hay disparo?
+C 0x9549 se sale por abajo o por la derecha?
+C 0x9556 la casilla de debajo
+C 0x9559 una diana?
+C 0x955C la diana de arriba: 30 puntos...
+C 0x9572 ...la del medio, 20...
+C 0x957F ...la de abajo, 10
+L 0x9588 bonus_diana               La diana tocada empieza a girar y da sus puntos
+C 0x9593 su cartel de puntos (0x95AA) en la tabla de nombres
+C 0x95A0 su sonido
+L 0x95A4 bonus_disparo_fuera       El disparo, fuera
+D 0x95AA 0x95B6 bonus_puntos  Los carteles de las tres dianas: 3000, 2000 y 1000 en casillas
+F 0x95AA 4
+L 0x95B6 bonus_dispara             Dispara en el bonus: el paso del disparo segun el dibujo del esquiador (0x95DE)
+L 0x95D1 bonus_dispara_busca       Busca el paso del dibujo
+D 0x95E0 0x95F4 bonus_pasos  El paso del disparo (dy, dx) por cada dibujo del esquiador
+F 0x95E0 2
+L 0x95F4 bonus_dianas              Las dianas tocadas giran: tres dibujos, cada cuatro cuadros
+L 0x9603 bonus_diana_gira          Una diana
+L 0x960E bonus_diana_dibujo        Su dibujo (0x9632) en sus dos sprites
+L 0x9629 bonus_diana_sig           La siguiente
+D 0x9632 0x9635 dianas_dibujos  Los tres dibujos de la diana que gira
+# ======================================================================
+# UTILIDADES
+# ======================================================================
+L 0x9635 sprites_girados           Copia BC bytes de sprites (HL) a la VRAM (DE) y otra vez girados de lado, detras
+L 0x9656 sprites_girados_uno       Un sprite: sus cuatro cuartos girados (0x96DA)
+C 0x9675 todos, de 0xE000 a la VRAM
+L 0x967D sprites_espejo            Copia BC bytes a 0xE400 y los deja en 0xE000 dados la vuelta (0x96A4)
+L 0x96A4 espejo_mitad              Tres veces: los cuartos de 8x8 en su sitio, girados (0x96C7)
+L 0x96A6 espejo_cuarto             Los cuatro cuartos de un sprite
+L 0x96C7 espejo_casilla            Una casilla de 8x8 girada: las columnas pasan a filas
+L 0x96C9 espejo_fila               Una fila de la casilla nueva
+L 0x96CD espejo_bit                Un bit de cada fila vieja
+L 0x96DA gira                      Gira C casillas de 8x8 (DE a HL): cada byte nuevo es una columna de la vieja
+L 0x96DB gira_fila                 Una fila
+L 0x96DE gira_bit                  Un bit
+L 0x96EA lee4                      E, D, C, B de (HL), HL cuatro mas alla
+L 0x96F3 guarda4_88d               E, D, C, B en la entrada 0xE88D
+L 0x96F6 guarda4                   E, D, C, B en (HL)
+L 0x96FF casilla_fila              La casilla de HL (RDVRM) menos 2 (0 = pista); por debajo de la fila 24 o en una bandera, 0
+L 0x9715 casilla_cero              Nada
+L 0x9717 casilla_xy                La casilla (RDVRM) debajo de la Y, X de HL
+L 0x971D xy_nombres                De Y, X en pantalla (H, L) a su direccion en la tabla de nombres (0x1800 + Y/8*32 + X/8)
+L 0x9739 pinta_ronda               La ronda (o un 1 en la demo), tres cifras, en DE
+L 0x9743 pinta_ronda_demo          La demo: ronda 1
+L 0x9745 pinta_ronda_cifras        Las cifras
+L 0x9754 pinta_puntos              HL x 100 en seis cifras, en DE
+L 0x9760 cifras                    HL en cinco cifras ASCII en 0xE894, y tres ceros detras
+L 0x976A cifras_10000              Las decenas de millar
+L 0x9779 cifras_1000               Los millares
+L 0x9788 cifras_100                Las centenas
+L 0x9797 cifras_10                 Las decenas
+L 0x97B2 tramo                     Cada 256 cuadros: los dibujos de la nieve del tramo
+C 0x97B2 en cuanto se pasa de 256 cuadros
+L 0x97B7 tramo_dibujos             La nieve de cada tramo (0xE882): del 0 al 3, del 4 al 7, del 8 al 11 y del 12 en adelante
+C 0x97BA del 0 al 3: 0xAF35...
+C 0x97CB del 4 al 7: 0xB02D...
+C 0x97D9 del 8 al 11: 0xB06B...
+C 0x97E5 del 12 en adelante: 0xB0C8
+L 0x97ED tramo_pinta               Los nombres de las ocho filas de arriba en 0xE000, los dibujos y los colores de la nieve
+C 0x97EF la pista, sin curva (0xAF35)...
+C 0x97FA ...y encima, la del tramo
+C 0x981C y la pista entera a la tabla de nombres
+L 0x981F irq_solo_musica_pon       La interrupcion de siempre (0x85A8): solo la musica
+C 0x9825 el "jp" del gancho H.TIMI
+L 0x982A musica_suena              NZ si el primer canal aun suena
+L 0x982F nombres_borra             La tabla de nombres a cero, y los sprites fuera
+L 0x9839 sprites_fuera             Los 32 sprites fuera de la pantalla (Y 0xC0), en la RAM y en la VRAM
+L 0x9851 sprites_carga             Los dibujos de los sprites: los del esquiador (0xA1CD) y girados, y el resto (0xA34D)
+C 0x986F las casillas 4 a 11, vacias
+L 0x9879 ram_borra                 La RAM de la partida (0xE000-0xE903) a cero, las diez cuentas a 0xFF y lo que cae, fuera
+C 0x9885 tampoco ronda acabada ni choque
+L 0x989B demo                      NZ en la demo
+L 0x98A0 moto_sprites_fuera        Los sprites de la moto (0xE814), fuera
+L 0x98B4 boton_disparo             Vuelve al de arriba si no esta el boton 1
+L 0x98BC boton_suelto              El boton suelto
+L 0x98C0 boton_nuevo               Vuelve al de arriba si el boton ya estaba pulsado
+L 0x98C8 boton_marca               Lo marca pulsado
+L 0x98CB ronda1_juega              Z en la ronda 1 jugando (no en la demo ni despues de ella)
+L 0x98D5 tercio_copia              Copia los dibujos y los colores del primer tercio a los otros dos (LDIRMV y LDIRVM)
+L 0x990C ldirvm                    LDIRVM y DE, HL avanzan BC
+L 0x991A marcador_pinta            El marcador entero: HIGH SCORE, 1UP, ROUND, los puntos y las vidas
+C 0x991A HIGH (0x9997)...
+C 0x9926 ...SCORE...
+C 0x992F ...1UP...
+C 0x9938 ...ROUND
+C 0x9941 el record
+C 0x994A los puntos
+C 0x9953 las vidas de reserva...
+L 0x9963 marcador_vidas1           Hasta cinco en la fila 13...
+L 0x9976 marcador_vidas2           ...y otras cinco en la 16
+L 0x997C marcador_ronda            Y la ronda
+L 0x9982 vidas                     A esquiadores (casillas 0x3E y 0x3F, una encima de otra)
+D 0x9997 0x99A8 marcador_textos  HIGH, SCORE, 1UP y ROUND para el marcador
+L 0x99A8 absoluto                  El valor absoluto de A
+L 0x99AE azar                      Un numero al azar: el de antes rotado mas el registro R
+L 0x99BD azar20                    Al azar de 0 a 19
+
+# ======================================================================
+# EL MOTOR DE SONIDO: tres canales (0xF002, 0xF022, 0xF042, 0x20 bytes)
+# ======================================================================
+# Cada canal: +0/+1 el principio de su pieza, +2 suena, +3/+4 por donde va,
+# +5 la duracion de la nota, +6 lo que le queda de sonar, +7 lo que le queda
+# hasta la siguiente, +8 el volumen, +9/+0A su envolvente, +0B el paso de la
+# envolvente, +0C el tipo de envolvente, +0D el tempo, +0E su cuenta, +0F/+10
+# la vuelta de una repeticion, +11 cuantas faltan, +12 el vibrato y +13 el
+# barrido del ruido. Una pieza son grupos de 3 bytes: la nota (o una orden de
+# 0xF2 a 0xFF) y dos bytes de argumentos.
+L 0xB94C canal                     HL = el canal B (0xF002 + B x 0x20), y lo deja en su estado inicial (0xBC12)
+C 0xB959 HL, el canal...
+C 0xB95A ...y desde +2...
+C 0xB95D ...30 bytes de 0xBC12
+L 0xB969 sonido_calla              Calla el sonido: los tres canales a cero, el PSG sin ruido y los volumenes a 0
+C 0xB96A sin transporte
+C 0xB979 el registro 7 del PSG (RDPSG)...
+C 0xB97E ...los dos bits de los puertos se quedan...
+C 0xB980 ...los tonos apagados (0x38)...
+C 0xB985 ...WRTPSG
+C 0xB988 los tres canales, callados
+L 0xB998 sonido_calla_uno          Cada canal: sin vibrato ni barrido y el volumen a 0
+L 0xB9A2 canal_para                El canal deja de sonar: sin vibrato ni barrido...
+L 0xB9A9 volumen                   ...y el volumen E en el registro 8 + B del PSG
+L 0xB9B0 sonido_cuadro             Un cuadro del motor: los tres canales, del 2 al 0
+L 0xB9B6 sonido_cuadro_uno         Un canal
+L 0xB9C4 canal_cuadro              Un cuadro de un canal: el tempo, la nota, el vibrato, el barrido y la envolvente
+C 0xB9C5 el canal en curso
+C 0xB9C8 suena?
+C 0xB9CD el tempo: cada tantos cuadros...
+C 0xB9D7 ...la nota acaba?...
+C 0xB9DA ...la siguiente
+C 0xB9DD le queda de sonar?...
+C 0xB9E0 ...si no, calla
+C 0xB9E2 el vibrato
+C 0xB9E9 el barrido del ruido
+L 0xB9F9 canal_mudo                Ya no suena
+L 0xB9FE vibrato                   El vibrato: el periodo del canal (RDPSG) mas el paso, si es de 16 o mas
+C 0xBA22 WRTPSG: la parte baja...
+C 0xBA2A ...y la alta
+L 0xBA14 vibrato_suma              Le suma el paso (con signo)
+L 0xBA20 vibrato_pon               Lo escribe
+L 0xBA2E barrido                   El barrido del ruido: el registro 6 sube o baja y rebota entre 1 y 30
+L 0xBA3B barrido_rebota            Rebota: el paso cambia de signo
+L 0xBA45 barrido_pon               Lo escribe
+L 0xBA50 envolvente                La envolvente: el paso que toca segun lo que le queda a la nota, y su volumen de la tabla del canal
+C 0xBA53 acabada?
+C 0xBA59 lo que le queda, por 16...
+L 0xBA66 envolvente_div            La division, bit a bit
+L 0xBA72 envolvente_bit            Un bit del cociente
+L 0xBA7A envolvente_paso           El paso: el volumen esta en la mitad alta o baja del byte de la tabla
+L 0xBA99 envolvente_volumen        El volumen del paso por el volumen del canal, entre 16
+L 0xBAA3 envolvente_mult           La multiplicacion, bit a bit
+L 0xBAA9 envolvente_mult_sig       El bit siguiente
+L 0xBAB5 nota                      La nota siguiente de la pieza: una nota o una orden (0xF2-0xFF, tabla 0xBBF6)
+C 0xBAB9 una nota?
+C 0xBABC la orden: 0xFF es la 0, 0xFE la 1...
+C 0xBAC2 su rutina en la tabla 0xBBF6
+C 0xBAC8 al acabar, otra nota
+C 0xBAD0 a la orden
+L 0xBAD1 nota_pon                  Una nota: A el numero, E la duracion, D hasta la siguiente; duracion 0 es un silencio
+C 0xBAE0 mas el transporte
+L 0xBAE6 nota_octava               La octava: de 12 en 12
+L 0xBAEF nota_periodo              El periodo de la nota (0xBC24), partido por 2 por cada octava
+L 0xBAFE nota_octava_baja          Una octava mas arriba
+L 0xBB05 nota_escribe              El periodo en los registros 2B y 2B+1 del PSG
+L 0xBB0F nota_envolvente           Si la envolvente es de las de tabla, desde el paso 0
+L 0xBB19 orden_fin                 Orden 0xFF: la pieza se acaba y el canal calla
+L 0xBB21 orden_repite              Orden 0xFC: vuelve a la marca si faltan repeticiones
+L 0xBB25 orden_vuelve              Orden 0xFD: vuelve a la marca
+L 0xBB2B orden_salta               Orden 0xF4: salta a DE
+L 0xBB31 orden_nada                Orden 0xFE: nada
+L 0xBB32 orden_marca               Orden 0xFB: la marca de la repeticion y cuantas veces
+L 0xBB42 orden_volumen             Orden 0xFA: el volumen del canal
+L 0xBB49 envolvente_psg            La envolvente del PSG: volumen 16 y los registros 11-13
+L 0xBB64 orden_envolvente          Orden 0xF9: el tipo de envolvente: del PSG o de la tabla 0xBC3C
+L 0xBB7F orden_mezcla              Orden 0xF6: tono y ruido del canal en el registro 7
+L 0xBB89 orden_mezcla_bit          Los bits del canal
+L 0xBB8D orden_mezcla_pon          Los escribe
+L 0xBBA1 orden_ruido               Orden 0xF5: el periodo del ruido y una nota de ruido
+L 0xBBA7 ruido_nota                La nota de ruido: su duracion y el registro 6
+L 0xBBBE pieza_lee                 Los tres bytes siguientes de la pieza: A, E, D
+L 0xBBDE orden_vibrato             Orden 0xF3: el paso del vibrato y una nota
+L 0xBBEA orden_barrido             Orden 0xF2: el paso del barrido y una nota de ruido
+D 0xBBF6 0xBC12 ordenes  Las catorce ordenes del motor (0xFF, 0xFE... 0xF2); la 0xF8 y la 0xF7 no existen (0x0000)
+F 0xBBF6 w2
+D 0xBC12 0xBC24 canal_inicio  El estado inicial de un canal (desde +2): suena, la duracion, el volumen 8, la envolvente...
+D 0xBC24 0xBC3C periodos  Los periodos de las doce notas de la octava mas baja (do a si)
+F 0xBC24 w12
+D 0xBC3C 0xBC64 envolventes  Las cinco envolventes de tabla: 16 pasos de 4 bits (8 bytes cada una)
+F 0xBC3C 8
+B 0xBC64 Las musicas y los efectos: cada uno pone sus piezas en sus canales. Las musicas callan antes el sonido.
+L 0xBC64 musica_salida             La musica de salida de la ronda 1: tres canales (0xBD26, 0xBD63, 0xBD7F)
+L 0xBC7E musica_ronda              La musica de la ronda: un canal (0xBDA4)
+L 0xBC88 musica_titulo             La musica del bonus: dos canales (0xBDF8, 0xBE29)
+L 0xBC9A musica_game_over          GAME OVER: tres canales (0xBE5A, 0xBE73, 0xBE8C)
+L 0xBCB4 musica_choque             La caida: un canal (0xBEA5)
+L 0xBCBE musica_pattern_clear      PATTERN CLEAR: tres canales (0xBEBB, 0xBEEC, 0xBF1D)
+L 0xBCD6 pieza                     Pone la pieza DE en el canal B y la hace sonar
+L 0xBCE0 efecto_disparo            El disparo (canal 3, 0xBF33)
+L 0xBCE7 efecto_enemigo            El enemigo que se acerca (canal 2, 0xBF4F)
+L 0xBCEE efecto_derribo            Un enemigo derribado (canal 3, 0xBF77)
+L 0xBCF5 efecto_moto               La moto que sale (canal 2, 0xBF8A)
+L 0xBCFC efecto_diana              Una diana o la moto tocadas (canal 2, 0xBFA0)
+L 0xBD03 efecto_salto              El salto (canal 3, 0xBFB6)
+L 0xBD0A efecto_moto_tocada        La moto tocada (canal 3, 0xBFC3)
+L 0xBD11 efecto_moto_fuera         La moto que se va (canal 2, 0xBD62)
+L 0xBD18 efecto_bandera            Una bandera (canal 3, 0xBFD6)
+L 0xBD1F efecto_vida               Una vida extra (canal 3, 0xBFEC)
+D 0xBD26 0xC000 piezas  Las piezas de las seis musicas y los diez efectos: grupos de 3 bytes (nota u orden, y sus dos argumentos)
+F 0xBD26 3
+
+# ======================================================================
+# LOS DIBUJOS
+# ======================================================================
+# Las copias a la VRAM llevan longitudes fijas y algunas se meten en los datos
+# de detras: los colores del bonus (0x9D37, 0x518 bytes) cubren tambien el
+# campo y las casillas de la pista, las letras pequenas (0xB7F4, 0x180 bytes)
+# acaban dentro del motor de sonido, y los nombres y dibujos de los tramos de
+# nieve se pisan unos a otros. Lo que se copia de mas no se ve: cae en casillas
+# que no se usan.
+D 0x99C7 0x9D37 bonus_casillas  Las 110 casillas del bonus (8 bytes cada una), a partir de la 0x80
+F 0x99C7 8
+D 0x9D37 0x9EDF bonus_colores  Los colores de las casillas del bonus, desde la 0xB9 (la copia sigue 0x518 bytes, hasta 0xA24F)
+F 0x9D37 8
+D 0x9EDF 0x9FED bonus_campo  El campo del bonus en la tabla de nombres: 13 filas de 10, cinco de 25 y las tres dianas (tres filas de 5)
+F 0x9EDF 10
+D 0x9FED 0xA0CD pista_casillas  Las 28 casillas de la pista (0x00-0x1B): la lisa, la nieve de los bordes y las rayas; desde 0xA00D, 18 de ellas se cargan tambien de lado para el suelo (0xE0-0xF1)
+F 0x9FED 8
+D 0xA0CD 0xA1CD marcador_casillas  Las 32 casillas del marcador y del monte (desde la 0x80 del segundo tercio)
+F 0xA0CD 8
+D 0xA1CD 0xA34D sprites_esquiador  Los 12 sprites del esquiador (0x3800), que se cargan tambien de lado
+F 0xA1CD 8
+D 0xA34D 0xA90D sprites  Los 46 sprites de los enemigos, la moto, lo que cae, el disparo y la explosion (desde 0x3A40)
+F 0xA34D 8
+D 0xA90D 0xA9CD sprites_bonus  Los seis sprites del esquiador del bonus, de cara, que se giran y se dan la vuelta para los demas dibujos
+F 0xA90D 8
+D 0xA9CD 0xA9ED sprite_diana  El sprite de la diana del bonus (0x3B00)
+F 0xA9CD 8
+D 0xA9ED 0xAA4D sprites_caida  Los tres sprites del esquiador que se cae (0x3C00)
+F 0xA9ED 8
+D 0xAA4D 0xAC25 nieve_casillas  Las 59 casillas de la nieve y de los objetos (desde la 0x80)
+F 0xAA4D 8
+D 0xAC25 0xADFD nieve_colores  Sus colores
+F 0xAC25 8
+D 0xADFD 0xAEDD pista_colores  Los colores de las 28 casillas de la pista; desde 0xAE1D, los del suelo
+F 0xADFD 8
+D 0xAEDD 0xAEF5 cifras_colores  Los colores de tres casillas del marcador
+F 0xAEDD 8
+D 0xAEF5 0xAF35 letras_colores  Los colores de las ocho letras grandes del marcador (0x2020)
+F 0xAEF5 8
+D 0xAF35 0xB02D tramo0_nombres  Las ocho filas de arriba de la pista (el monte y la nieve del fondo, 31 casillas por fila, 0xF8 bytes): el tramo 0
+F 0xAF35 31
+D 0xB02D 0xB06B tramo1_nombres  Lo que cambia en el tramo 1 (se copian 0xF8 bytes desde aqui)
+F 0xB02D 31
+D 0xB06B 0xB0C8 tramo2_nombres  Lo que cambia en el tramo 2
+F 0xB06B 31
+D 0xB0C8 0xB144 tramo3_nombres  Lo que cambia en el tramo 3
+F 0xB0C8 31
+D 0xB144 0xB774 tramo_dibujos  Los dibujos de la nieve de los cuatro tramos (60 casillas desde la 0x90, desde 0xB144, 0xB2BC, 0xB39C o 0xB424) y sus colores 0x318 bytes mas alla
+F 0xB144 8
+D 0xB774 0xB7F4 letras_grandes  Las letras grandes de CASIO y SKI COMMAND (16 casillas; la copia sigue 0xE0 bytes)
+F 0xB774 8
+D 0xB7F4 0xB94C letras  La fuente: las cifras, la (c) y las letras, desde la 0x30 (la copia lleva 0x180 bytes y acaba en 0xB974)
+F 0xB7F4 8
+
+# ----------------------------------------------------------------------
+# comentarios de linea de las rutinas
+# ----------------------------------------------------------------------
+C 0x83AF una fila...
+C 0x83B4 ...de 25 casillas 0x80
+C 0x83BA la fila siguiente
+C 0x83C4 desde la casilla 4...
+C 0x83CA ...una fila de 25 de la misma casilla
+C 0x83D1 la fila siguiente...
+C 0x83D5 ...con la casilla siguiente...
+C 0x83DA ...hasta la 0x0B
+C 0x83E7 una fila del campo...
+C 0x83EA ...de 10 casillas
+C 0x83F1 la fila siguiente de la pantalla...
+C 0x83F7 ...y de la tabla
+C 0x8403 una fila de 25...
+C 0x840A la fila siguiente...
+C 0x8410 ...25 casillas mas alla en la tabla
+C 0x841F una fila de 5 (una diana)
+C 0x8426 la fila siguiente
+C 0x842C ...5 casillas mas alla
+C 0x8682 la tabla de direcciones...
+C 0x8688 ...mas la direccion...
+C 0x8689 ...sus bits
+C 0x8757 ...y su arbol
+C 0x8764 el tipo...
+C 0x8765 ...del 10 al 14, otro
+C 0x8771 BC = el tipo por tres
+C 0x8774 su columna
+C 0x8786 el tipo y el paso, del tipo
+C 0x8822 la tabla de dibujos (0x8910)...
+C 0x8838 en 0xE800
+C 0x883B la Y...
+C 0x883E ...mas la del sprite
+C 0x8842 la X...
+C 0x8845 ...mas la del sprite
+C 0x8849 el dibujo
+C 0x884C (el color se queda)
+C 0x88DE uno de cada cuatro cuadros...
+C 0x88E6 ...dos puntos
+C 0x88EA izquierda: un punto...
+C 0x88EF ...y el dibujo 3
+C 0x88F5 derecha: un punto...
+C 0x88F6 ...y el dibujo 6
+C 0x89AF la Y del enemigo...
+C 0x89B2 ...y su X
+C 0x89B5 esta en marcha?
+C 0x89BB la distancia en Y...
+C 0x89C0 ...menos de 12?
+C 0x89C4 la distancia en X...
+C 0x89C9 ...menos de 13: choque
+C 0x89D7 la Y y la X del esquiador...
+C 0x89DA ...su casilla...
+C 0x89DD ...tres filas mas abajo (los esquis)
+C 0x89F5 una direccion al azar...
+C 0x89F9 ...y siempre con el bit de arriba: frena
+C 0x89FE 32 cuadros
+C 0x8A05 una fila mas arriba
+C 0x8A09 RDVRM
+C 0x8A34 lo que cae...
+C 0x8A37 ...y el esquiador
+C 0x8A3B la distancia en X...
+C 0x8A40 ...menos de 8?
+C 0x8A43 la distancia en Y (8 mas abajo)...
+C 0x8A4A ...menos de 8: choque
+C 0x8B20 al azar...
+C 0x8B23 ...de 1 a 3...
+C 0x8B28 ...en la tabla de tipos
+C 0x8B30 el tipo de la moto
+C 0x8B37 Y, X, paso y tipo
+C 0x8B3A el color, a A'
+C 0x8B42 el tipo, por dos, en la tabla
+C 0x8B59 la Y y la X, mas el desplazamiento
+C 0x8B66 la Y
+C 0x8B68 la X
+C 0x8B6A el dibujo...
+C 0x8B72 ...y el color
+C 0x8C85 la Y, cuatro puntos menos
+C 0x8C91 RDVRM de la casilla de delante
+C 0x8C99 el resultado a A'
+C 0x8CA0 y la de la derecha
+C 0x8CAA en la parte de abajo...
+C 0x8CB1 ...la distancia en X...
+C 0x8CBA ...a que lado
+C 0x8CC2 al azar, un lado
+C 0x8CD1 la casilla de alli
+C 0x8CD6 libre?
+C 0x8CDD paso de lado -2
+C 0x8CE2 cuatro puntos a la izquierda...
+C 0x8CE7 ...la casilla de alli
+C 0x8CEC libre?
+C 0x8CF7 cuatro a la derecha...
+C 0x8CFD ...la casilla de alli
+C 0x8D0A sin paso de lado
+C 0x8D0D lo que sube la pista...
+C 0x8D11 ...a la contra
+C 0x8D17 sube con la pista...
+C 0x8D1C el tamano 0
+C 0x8D1E el enemigo en curso
+C 0x8D25 tamano 1...
+C 0x8D26 ...y un punto mas
+C 0x8D2B tamano 2...
+C 0x8D2C ...y dos mas
+C 0x8D32 tamano 3...
+C 0x8D33 ...y tres mas
+C 0x8D3A el canal 2 suena?...
+C 0x8D3E ...si no, el sonido del enemigo
+C 0x8D54 guarda Y, X, paso y tipo
+C 0x8D88 al azar...
+C 0x8D8B ...de 1...
+C 0x8D8F ...a 7
+C 0x8D93 el tipo
+C 0x8DA8 el tipo, a A'
+C 0x8DAB la tabla del tamano...
+C 0x8DAF ...su puntero
+C 0x8DB8 la Y...
+C 0x8DB9 ...mas la del sprite
+C 0x8DBB a la tabla
+C 0x8DBE la X...
+C 0x8DBF ...mas la del sprite
+C 0x8DC4 el segundo sprite (las piernas)...
+C 0x8DC9 ...con el paso de lado
+C 0x8DCF la X a la tabla
+C 0x8DD2 el dibujo
+C 0x8DDB los colores del tipo...
+C 0x8DE6 ...mas el del sprite
+C 0x8DED el color
+C 0x8DF7 el sprite siguiente
+C 0x8EF6 el dibujo del disparo lejano
+C 0x902E la columna en la tabla de nombres
+C 0x9036 los que sobran del principio...
+C 0x903D ...se saltan
+C 0x9046 la fila siguiente de la tabla
+C 0x904B se sale de la tabla?...
+C 0x9054 ...vuelve a su principio
+C 0x9059 la fila siguiente, 32 mas
+C 0x905F una casilla menos
+C 0x9070 la tabla de la derecha
+C 0x9074 fila 9, columna 15
+C 0x907D cinco casillas...
+C 0x9081 ...o menos, por la derecha
+C 0x9088 LDIRVM
+C 0x908C cinco mas en la tabla
+C 0x909A ...vuelve a su principio
+C 0x909F la fila siguiente, 33 mas
+C 0x90F1 una columna mas...
+C 0x90F5 ...hasta 0x1E...
+C 0x90F9 ...y vuelta a 0
+C 0x90FC el ultimo paso?
+C 0x9100 el monte, recto
+C 0x9103 la curva cambia
+C 0x9109 el monte de la curva a la izquierda
+C 0x912D una columna menos...
+C 0x9134 ...de 0 a 0x1E
+C 0x913C desde 0xE000
+C 0x913F ocho filas
+C 0x9171 la fila siguiente: 31 en la RAM...
+C 0x9173 ...y 32 en la tabla de nombres
+C 0x917F siete casillas...
+C 0x9182 ...de la 2 (la pista lisa)
+C 0x9187 la izquierda del monte (0x919F)...
+C 0x918A ...en la fila 8, columna 6
+C 0x9193 la derecha (0x91D1)...
+C 0x9196 ...en la columna 13
+C 0x9206 cada tantos cuadros...
+C 0x920D diez objetos
+C 0x9258 la entrada...
+C 0x9259 ...guardada
+C 0x9260 la entrada siguiente
+C 0x9269 el tamano de su talla...
+C 0x926C (ancho en B, alto en C)
+C 0x9271 la casilla 2
+C 0x9273 una fila
+C 0x9275 dentro de la pista?
+C 0x927A la casilla 2...
+C 0x927C ...WRTVRM
+C 0x927F la siguiente
+C 0x9283 la fila siguiente
+C 0x9292 la talla...
+C 0x9296 ...su puntero de casillas
+C 0x92A3 su tamano
+C 0x92AA una fila
+C 0x92AC dentro de la pista?
+C 0x92B1 su casilla...
+C 0x92B5 la siguiente
+C 0x92BA la fila siguiente
+C 0x92C6 la columna...
+C 0x92C9 ...menos de 25?
+C 0x92CC la fila...
+C 0x92CD ...antes de 0x1B00?
+C 0x92D2 la entrada C...
+C 0x92D4 ...en BC
+C 0x9486 "1UP"...
+C 0x9489 ...en la fila 6, columna 27...
+C 0x9492 ...o tres espacios
+C 0x94B5 la posicion...
+C 0x94B8 ...mas el paso
+C 0x94BE ha llegado?
+C 0x94C5 el punto siguiente
+C 0x94D1 la posicion nueva
+C 0x94D4 el dibujo del punto...
+C 0x94DB la posicion
+C 0x94E2 tres sprites
+C 0x94E4 la Y...
+C 0x94E6 ...la X...
+C 0x94E8 ...y el dibujo...
+C 0x94EB ...el siguiente, cuatro mas
+C 0x94FA el disparo, 16 por encima...
+C 0x94FF ...en la X...
+C 0x9501 ...dibujo 0x60...
+C 0x9504 ...color 0x0E
+C 0x953C su paso...
+C 0x9540 ...mas la posicion
+C 0x9561 las tres dianas: la de arriba
+C 0x9567 su cartel, en la fila 10
+C 0x9576 en la fila 13
+C 0x9583 en la fila 16
+C 0x9589 los puntos
+C 0x95BC el esquiador...
+C 0x95C5 ...es de donde sale el disparo
+C 0x95C8 su dibujo...
+C 0x95CE ...busca su paso
+C 0x95D6 el paso
+C 0x95DD y el sonido del disparo
+C 0x95F7 uno de cada cuatro cuadros
+C 0x95FA los sprites de las dianas
+C 0x9603 tocada?
+C 0x9607 el dibujo siguiente...
+C 0x960C ...del 1 al 3
+C 0x9611 el dibujo de la tabla...
+C 0x9619 ...en sus dos sprites
+C 0x961C (color 6)
+C 0x9629 la siguiente
+C 0x9637 tal cual
+C 0x9653 en 0xE000
+C 0x9657 el cuarto de arriba a la derecha...
+C 0x965B ...girado...
+C 0x965E ...el de arriba a la izquierda...
+C 0x9664 ...16 bytes...
+C 0x9666 ...girados
+C 0x9669 la mitad de abajo
+C 0x966E el siguiente
+C 0x9680 a 0xE400
+C 0x9685 la mitad izquierda...
+C 0x968E ...y la derecha
+C 0x969A los sprites a la VRAM
+C 0x96A7 el cuarto siguiente...
+C 0x96AB ...girado
+C 0x96CA A, la fila nueva
+C 0x96CD el bit de la derecha de la fila vieja...
+C 0x96D0 ...a la nueva
+C 0x96D4 la fila nueva
+C 0x96DD un byte viejo...
+C 0x96DE ...bit a bit...
+C 0x96DF ...a ocho bytes nuevos
+C 0x96EA E...
+C 0x96EC ...D...
+C 0x96EE ...C...
+C 0x96F0 ...B
+C 0x96F6 E...
+C 0x96F8 ...D...
+C 0x96FA ...C...
+C 0x96FC ...B
+C 0x9701 por debajo de la fila 24...
+C 0x970B RDVRM
+C 0x970E 0xBA, el arbol del enemigo especial: 0
+C 0x9712 0, 1 y 2 son la pista
+C 0x971D Y en L, X en H
+C 0x9720 Y / 8...
+C 0x9728 ...por 32...
+C 0x972E ...mas X / 8
+C 0x9733 en la tabla de nombres
+C 0x9739 la demo?
+C 0x973E la ronda
+C 0x974B tres cifras
+C 0x9757 seis cifras
+C 0x9762 en 0xE894
+C 0x9765 la cifra de las decenas de millar...
+C 0x976A ...resta 10.000 mientras se pueda
+C 0x9770 se ha pasado uno
+C 0x9771 lo devuelve
+C 0x9776 los millares...
+C 0x9785 las centenas...
+C 0x9794 las decenas...
+C 0x97A1 las unidades
+C 0x97A6 y tres ceros
+C 0x9805 0x1E0 bytes desde la casilla 0x90
+C 0x980F los colores, 0x318 bytes despues
+C 0x9822 0xFDA0 = 0x85A8
+C 0x982A el primer canal suena?
+C 0x9832 0x300 bytes de la tabla de nombres...
+C 0x9835 ...a cero
+C 0x9839 0x80 bytes de la tabla de sprites...
+C 0x9842 ...a 0xC0
+C 0x9846 y lo mismo en la VRAM
+C 0x9854 a 0x3800...
+C 0x985A ...tal cual...
+C 0x9860 ...y girados
+C 0x9863 el resto de los sprites (0xA34D)...
+C 0x9866 ...desde 0x3A40
+C 0x9872 las casillas 4 a 11: 64 bytes...
+C 0x9875 ...a cero
+C 0x9879 0xE000-0xE903...
+C 0x9882 ...a cero
+C 0x9889 las diez cuentas...
+C 0x9892 ...a 0xFF
+C 0x9896 lo que cae, fuera
+C 0x989B 0xE914...
+C 0x989E ...distinto de 0
+C 0x98A3 los seis sprites de la moto...
+C 0x98AC ...a 0xC0
+C 0x98B4 el boton 1...
+C 0x98BA no: fuera tambien del que llama
+C 0x98C0 ya estaba pulsado?
+C 0x98C6 si: fuera tambien del que llama
+C 0x98CB la ronda menos uno...
+C 0x98D0 ...y si se ha pasado de la demo
+C 0x98D5 los dibujos del primer tercio...
+C 0x98DE ...LDIRMV a 0xE000...
+C 0x98E4 ...al segundo y al tercero
+C 0x98F2 los colores del primer tercio...
+C 0x98FB ...LDIRMV...
+C 0x9901 ...al segundo y al tercero
+C 0x990F LDIRVM
+C 0x9915 DE + BC...
+C 0x9918 ...HL + BC
+C 0x9985 la cabeza (0x3E)...
+C 0x998E ...y debajo...
+C 0x9992 ...los esquis (0x3F)
+C 0x99A8 negativo?
+C 0x99AB lo cambia de signo
+C 0x99AF el azar de antes...
+C 0x99B2 ...rotado...
+C 0x99B4 ...mas el registro R...
+C 0x99B6 ...rotado
+C 0x99C0 de 0 a 31...
+C 0x99C2 ...mientras no sea menor de 20
+C 0xB94E los canales desde 0xF002...
+C 0xB951 ...de 32 en 32 bytes
+C 0xB96D el canal 0...
+C 0xB971 ...el 1...
+C 0xB975 ...y el 2
+C 0xB989 ninguno suena
+C 0xB992 tres canales
+C 0xB998 cada uno...
+C 0xB99B ...el siguiente
+C 0xB9A3 sin vibrato...
+C 0xB9A6 ...ni barrido
+C 0xB9AA el registro de volumen del canal
+C 0xB9B2 empieza por el 2
+C 0xB9B9 el canal siguiente
+C 0xB9BE el numero de canal...
+C 0xB9C2 ...uno menos
+C 0xB9D1 el tempo...
+C 0xB9D4 ...vuelve a su cuenta
+C 0xB9F0 lo que le queda...
+C 0xB9F6 ...si no ha acabado, la envolvente
+C 0xB9FE el registro de periodo...
+C 0xBA03 RDPSG: la parte baja...
+C 0xBA09 ...y la alta
+C 0xBA0D por encima de 16?
+C 0xBA16 el paso...
+C 0xBA1C ...con signo
+C 0xBA2E el periodo del ruido (RDPSG 6)
+C 0xBA33 entre 1...
+C 0xBA37 ...y 30
+C 0xBA3C el paso, al reves
+C 0xBA46 el ruido mas el paso
+C 0xBA4B WRTPSG 6
+C 0xBA56 lo que le queda...
+C 0xBA60 ...entre la duracion
+C 0xBA64 ocho bits
+C 0xBA67 el divisor...
+C 0xBA6C ...cabe?
+C 0xBA77 16 menos el cociente: el paso de la envolvente
+C 0xBA80 el paso entre 2: el byte...
+C 0xBA86 ...de la envolvente
+C 0xBA92 el byte...
+C 0xBA95 ...su mitad alta o baja
+C 0xBA9B el volumen de la envolvente...
+C 0xBA9D ...por el del canal
+C 0xBAA1 ocho bits
+C 0xBAAC entre 16
+C 0xBAD1 la duracion...
+C 0xBAD4 ...lo que le queda...
+C 0xBAD7 ...y hasta la siguiente
+C 0xBADA duracion 0: silencio
+C 0xBAE4 la octava
+C 0xBAF0 la nota de la tabla...
+C 0xBAF3 ...0xBC24
+C 0xBAFA las octavas de mas...
+C 0xBAFE ...el periodo a la mitad
+C 0xBB05 el registro 2B...
+C 0xBB07 ...la parte baja...
+C 0xBB0C ...y la alta
+C 0xBB0F la envolvente es de tabla?
+C 0xBB15 desde el paso 0
+C 0xBB1A el canal no suena...
+C 0xBB1D ...fuera la vuelta a otra nota...
+C 0xBB1E ...y calla
+C 0xBB21 una repeticion menos...
+C 0xBB24 ...si es la ultima, sigue
+C 0xBB25 la marca...
+C 0xBB2B ...por donde va
+C 0xBB32 cuantas veces...
+C 0xBB35 ...y la marca es por donde va
+C 0xBB42 el volumen, de 0 a 15
+C 0xBB49 el volumen 16: la envolvente del PSG
+C 0xBB4E en el registro de volumen
+C 0xBB51 la forma en el registro 13
+C 0xBB57 los tres bytes siguientes...
+C 0xBB5A ...el periodo en los registros 11...
+C 0xBB60 ...y 12
+C 0xBB64 el tipo de envolvente...
+C 0xBB67 ...bit 4: de tabla
+C 0xBB6B la tabla: 8 bytes por envolvente...
+C 0xBB78 ...desde 0xBC3C
+C 0xBB7F los bits de tono y ruido del canal...
+C 0xBB83 ...la mascara
+C 0xBB89 corridos al canal
+C 0xBB8D RDPSG 7
+C 0xBB93 fuera los del canal...
+C 0xBB96 ...y los nuevos
+C 0xBB99 los puertos de E/S como estaban
+C 0xBB9C WRTPSG 7
+C 0xBBA1 fuera la vuelta...
+C 0xBBA3 ...y los tres bytes siguientes
+C 0xBBA7 la duracion...
+C 0xBBAD ...y hasta la siguiente
+C 0xBBB2 0: silencio
+C 0xBBB6 WRTPSG 6: el periodo del ruido
+C 0xBBBE el principio de la pieza...
+C 0xBBC4 ...mas por donde va
+C 0xBBCB tres mas
+C 0xBBD4 el canal...
+C 0xBBD8 A, E y D
+C 0xBBE3 el paso del vibrato
+C 0xBBEF el paso del barrido
+C 0xBC64 calla todo
+C 0xBC67 el canal 0...
+C 0xBC6F ...el 1...
+C 0xBC77 ...y el 2
+C 0xBC88 calla todo
+C 0xBC8B el canal 0...
+C 0xBC93 ...y el 1
+C 0xBC9A calla todo
+C 0xBC9D el canal 0...
+C 0xBCA5 ...el 1...
+C 0xBCAD ...y el 2
+C 0xBCBE calla todo
+C 0xBCC1 el canal 0...
+C 0xBCC9 ...el 1...
+C 0xBCD1 ...y el 2
+C 0xBCD6 el canal en su estado inicial
+C 0xBCD9 el principio de la pieza...
+C 0xBCDD ...y suena
+C 0x8F94 el tipo de la moto...
+C 0x8F95 ...solo las tres primeras tallas se pueden tocar
+C 0x8F98 su tamano en sprites (ancho en C, alto en B)...
+C 0x8F9E ...por 8
+C 0x8FAA la distancia en Y...
+C 0x8FAE ...dentro de su alto?
+C 0x8FB3 la distancia en X...
+C 0x8FB7 ...dentro de su ancho?
+C 0x8FBC tocada
+C 0x8FC1 Y, X, paso y tipo
+C 0x8FC4 el paso, a A'
+C 0x8FC8 el dibujo de la explosion: cuatro mas
+C 0x8FCD guarda
+C 0x8FD8 no hay disparo
+C 0x8FE4 la moto otra vez...
+C 0x8FE8 ...el paso que tenia
+C 0x8FEB 1: tocada
+C 0x80D6 a la casilla 0
+C 0x80E2 en 0xE000...
+C 0x80F8 a 0x2000
+C 0x8104 a 0x20E0
+C 0x8110 0x280 bytes...
+C 0x8113 ...de la casilla 0x30 en adelante
+C 0x811B a 0x0400...
+C 0x811E ...0x1D8 bytes
+C 0x8127 a 0x2400
+C 0x8136 a 0x0400
+C 0x8142 0xA8 bytes
+C 0x814D 0x50 bytes desde 0x24A0
+C 0x8158 a 0x24E8
+C 0x8164 a 0x2020
+C 0x8178 la demo
+C 0x8183 15 letras
+C 0x81A1 16 filas
+C 0x81A5 25 casillas...
+C 0x81B7 desde la fila 8, columna 0
+C 0x81BA 11 casillas la primera
+C 0x81BC una fila...
+C 0x81BD ...de E casillas...
+C 0x81C9 la fila siguiente
+C 0x81CE una menos
+C 0x81D6 11 casillas la primera
+C 0x81D8 una fila...
+C 0x81D9 ...de E casillas...
+C 0x81EA una menos
+C 0x81F9 en 0xE800
+C 0x81FC 16 bytes
+C 0x8204 3 bytes
+C 0x825E (0xE8FA)
+C 0x8277 0xC0...
+C 0x8279 ...en 0x70 bytes
+C 0x8281 0x60 bytes...
+C 0x8284 ...y girados
+C 0x82A2 (0xE88D, el dibujo de la caida)
+C 0x82AB y los sprites
+C 0x82AE la espera...
+C 0x82B1 ...ha acabado?
+C 0x82C1 (0xE884)
+C 0x82D7 la ultima espera
+C 0x82F8 fila 7, columna 8
+C 0x82FB 9 letras
+C 0x8312 fila 2, columna 7
+C 0x8315 13 letras
+C 0x832C a 0x3800
+C 0x832F 0xC0 bytes
+C 0x8343 0x20 bytes
+C 0x8346 (un sprite)
+C 0x834F a 0x0400
+C 0x8352 0x370 bytes
+C 0x835B 0x800 bytes
+C 0x8366 0x2D8 bytes
+C 0x8371 0x118 bytes desde 0x2448
+C 0x837C 0x48 bytes desde 0x2560
+C 0x8387 0x20 bytes desde 0x25A8
+C 0x8392 a 0x25C8
+C 0x8395 0x518 bytes
+C 0x839E a 0x2020
+C 0x83A1 0x40 bytes
+C 0x83AD 24 filas
+C 0x83C6 8 filas
+C 0x83E2 fila 6, columna 0
+C 0x83E5 13 filas
+C 0x841A 3 filas
+C 0x8F07 un enemigo...
+C 0x8F09 ...Y, X, paso, tipo
+C 0x8F10 la Y del disparo...
+C 0x8F13 ...menos la del enemigo...
+C 0x8F17 ...menos de 6?
+C 0x8F1B la X del disparo...
+C 0x8F1E ...menos la del enemigo...
+C 0x8F22 ...menos de 6: tocado
+C 0x8F58 la moto
+C 0x8F60 no hay?
+C 0x8F63 ya tocada?
+C 0x8F69 el disparo...
+C 0x8F6C ...contra la moto en Y...
+C 0x8F71 ...a menos de 8...
+C 0x8F74 ...y en X...
+C 0x8F79 ...a menos de 8
+C 0x8F8A sin moto
+C 0x8F90 ni sus sprites
+C 0x9543 la X...
+C 0x9544 ...mas el paso
+C 0x9546 la Y...
+C 0x9547 ...mas el paso
+C 0x954E por la derecha?
+C 0x9553 se guarda...
+C 0x955F la Y
+C 0x9564 30 puntos
+C 0x956B la primera
+C 0x956E por debajo de 0x64?
+C 0x9573 ...20 puntos...
+C 0x957A ...fila 13
+C 0x957B por debajo de 0x7C?
+C 0x9580 ...10 puntos...
+C 0x9587 ...fila 16
+C 0x9588 la diana empieza a girar
+C 0x958C mas los puntos
+C 0x9590 el cartel a su fila
+C 0x9596 ...4 bytes cada uno
+C 0x959D LDIRVM
+C 0x90AB cada ocho cuadros...
+C 0x90AF la curva que viene
+C 0x90B3 la cuenta...
+C 0x90B5 ...se ha acabado?
+C 0x90BC la cuenta...
+C 0x90BF una menos
+C 0x90C1 ...el ultimo paso?
+C 0x90CA una curva mas a la derecha
+C 0x90CB pasa por cero: recta
+C 0x90D0 fila 8, columna 3
+C 0x90DC fila 8, columna 11
+C 0x90EB sin espera de curva
+C 0x90FD el ultimo paso?
+C 0x9106 una curva mas a la izquierda
+C 0x910C fila 8, columna 8
+C 0x9118 fila 8, columna 15
+C 0x9127 sin espera de curva
+C 0x9130 una columna menos
+C 0x9139 la tabla de nombres...
+C 0x9142 la columna de la pista...
+C 0x914A cuantas quedan hasta el final de la fila...
+C 0x9155 ...hasta 25
+C 0x9162 lo que falta...
+C 0x9166 ...desde el principio de la fila
+C 0x9222 ...en marcha
+C 0x922B el paso
+C 0x9230 la bajada de este paso...
+C 0x9236 ...columnas...
+C 0x9238 ...a la direccion
+C 0x9242 el paso
+C 0x9248 cada 16, un tipo mas: el ultimo...
+C 0x8C48 cada cuatro cuadros...
+C 0x8C4D los sprites del enemigo...
+C 0x8C52 ...los doce bytes...
+C 0x8C56 ...a 0xC0
+C 0x8C5E Y, X, paso y tipo
+C 0x8C67 derribado?
+C 0x8C6E el paso...
+C 0x991D fila 1, columna 26
+C 0x9920 4 letras
+C 0x9929 5 letras
+C 0x9932 3 letras
+C 0x993B 5 letras
+C 0x9944 fila 4, columna 25
+C 0x994D fila 8, columna 25
+C 0x9956 sin vidas de reserva?
+C 0x9959 la que juega no cuenta
+C 0x995D hasta cinco...
+C 0x9961 ...en la primera fila
+C 0x9963 fila 13, columna 26
+C 0x9969 las que pasan de cinco...
+C 0x9970 ...hasta cinco...
+C 0x9976 ...en la fila 16
+C 0x997C fila 22, columna 27: la ronda
+C 0x8661 GTTRIG 4: el del mando 2
+C 0x866D SNSMAT
+C 0x8671 pulsada (bit a 0)...
+C 0x8672 ...la GRAPH...
+C 0x8674 ...al bit 0
+C 0x8676 junto con los botones
+C 0x9797 las decenas de millar...
+C 0x9779 ...resta 1.000 mientras se pueda
+C 0x9788 ...resta 100 mientras se pueda
+C 0x97A0 la siguiente
+C 0x97A5 la siguiente
+C 0x97A9 la siguiente
+C 0x876F ...mas uno: por tres
+C 0x8775 el paso del tipo
+C 0x877E HL la direccion
+C 0x8780 HL la entrada
+C 0x8783 la direccion en la entrada
+C 0x8788 dos bytes: el tipo y el paso
+C 0x8A58 cada ocho cuadros
+C 0x8A61 la moto
+C 0x8A6B ...un punto mas abajo
+C 0x8A70 hasta 0x30
+C 0x8A84 un sprite en su Y y X...
+C 0x8A8A ...dibujo 0xF8...
+C 0x8A8E ...color 1
+C 0x8A92 otro...
+C 0x8A98 ...dibujo 0xFC...
+C 0x8A9C ...color 0x0A
+C 0x8B64 la fila
+C 0x8B6F el siguiente dibujo
+C 0x8B79 los sprites de la fila
+C 0x8B81 las filas
+C 0x97ED los dibujos de la nieve
+C 0x97EE los nombres de este tramo
+C 0x97F2 a 0xE000...
+C 0x97F5 ...0xF8 bytes
+C 0x97FB encima, en IX...
+C 0x97FE ...0xF8 bytes de los del tramo
+C 0x9808 0x1E0 bytes
+C 0x9813 a 0x2480
+C 0x8422 LDIRVM
+C 0x8D5C la curva acabada?
+C 0x8D5E la cuenta de los enemigos...
+C 0x8D63 al azar...
+C 0x8D66 ...uno de cada 32
+C 0x8D70 la curva...
+C 0x8D7F en la entrada del enemigo
+C 0x8EA9 la casilla de debajo
+C 0x8EAC 0xBA no...
+C 0x8EB0 ...0xAF o mas: una bandera
+C 0x8ED3 borrado
+C 0x8EDC hasta 0xA3: un objeto
+C 0x8EE1 por encima de 0x40...
+C 0x905C la fila siguiente
+C 0x9060 diez filas
+C 0x9084 cuantas
+C 0x9091 se sale de la tabla?
+C 0x90A6 diez filas
+C 0x929E su puntero de casillas, en DE
+C 0x92B6 la casilla siguiente
+C 0x94E5 Y
+C 0x94E7 X
+C 0x94E9 el sprite siguiente
+C 0x94ED tres sprites
+C 0x94F0 ...por debajo de 0x48?
+C 0x94F3 en 0x48...
+C 0x825F choque?
+C 0x8274 0x70 bytes
+C 0x828D (0xE8FC)
+C 0x963F BC / 32: cuantos sprites
+C 0x965A el cuarto de abajo
+C 0x9662 16 atras
+C 0x967B HL como estaba
+C 0x9683 LDIR
+C 0x968B la mitad izquierda
+C 0x9694 la mitad derecha
+C 0x96A3 en HL
+C 0x97C0 sus dibujos
+C 0x97C3 sus nombres en 0xE000
+C 0x97C7 el tramo...
+C 0x97C9 ...del 0 al 3?
+C 0x97CE en 0xE0BA
+C 0x97D5 del 4 al 7?
+C 0x97DC IX una fila antes
+C 0x97E1 del 8 al 11?
+C 0x97E8 IX una fila antes
+C 0xB954 B por 32
+C 0xB960 30 bytes
+C 0xBA7D 16: la envolvente se ha acabado
+C 0xBA82 el paso par o impar
+C 0xBA89 la envolvente del canal
+C 0xBA8D el canal
+C 0xBA93 impar: la mitad baja
+C 0xBABD por dos
+C 0xBAC5 la entrada
+C 0xBACC la rutina
+C 0xBAE3 ...mas la nota
+C 0xBAE6 de 12 en 12...
+C 0xBAED ...una octava mas
+C 0xB9B6 el canal...
+C 0xB9BC ...siguiente
+C 0xB9D0 ...aun no
+C 0xB9E5 hay vibrato?
+C 0xB9EC hay barrido?
+C 0xB9F9 sin sonar
+C 0x86C9 la ronda se acaba
+C 0x86CF columna 3 y curva 3
+C 0x86D5 la curva...
+C 0x86D7 ...acabada
+C 0x86EA sin curva
+C 0x86F6 (0xE8A7)
+C 0x86FC (0xE883)
+C 0x8702 0: una curva
+C 0x870B 0: recta
+C 0x8715 bit 0 al azar...
+C 0x8716 ...a la derecha
+C 0x8729 la entrada
+C 0x8731 la siguiente
+C 0x8737 un tipo de 0 a 19
+C 0x873A en C
+C 0x874A de 5...
+C 0x874C ...a 19
+C 0x8760 la ronda...
+C 0x8762 ...de la 4 en adelante, todos
+C 0x8767 menos de 10, vale
+C 0x876B del 10 al 14, otro
+C 0x8AE4 por encima de 0x38...
+C 0x8AE8 ...una talla menos...
+C 0x8AE9 ...y un punto mas arriba
+C 0x8AEA por encima de 0x28...
+C 0x8AEE ...otra talla...
+C 0x8AEF ...y otro punto
+C 0x8AF0 por encima de 0x10...
+C 0x8AF4 ...la mas pequena...
+C 0x8AF5 ...y otro punto
+C 0x9021 la fila...
+C 0x9023 cinco casillas...
+C 0x9027 C negativo: la fila se corta por la izquierda...
+C 0x902B ...cuantas quedan
+C 0x88A1 en el 75...
+C 0x88A3 ...el dibujo anterior...
+C 0x88AA ...y la sombra grande (0x48)
+C 0x8F0E derribado: el siguiente
+C 0x8F26 guarda el enemigo...
+C 0x8F3D el bit 7 del paso
+C 0x8F4A el enemigo, guardado
+C 0x8F4D fuera del bucle
+C 0x8F50 el enemigo, sin cambiar
+C 0x8F55 el siguiente
+C 0x80C9 la ronda...
+C 0x80CC ...una mas
+C 0x80DC LDIRVM
+C 0x80F2 LDIRVM
+C 0x80FE LDIRVM
+C 0x810A LDIRVM
+C 0x8115 FILVRM
+C 0x8121 LDIRVM
+C 0x812D LDIRVM
+C 0x813C LDIRVM
+C 0x8147 FILVRM
+C 0x8152 FILVRM
+C 0x815E LDIRVM
+C 0x816A LDIRVM
+C 0x8186 LDIRVM
+C 0x818C la ronda en tres cifras
+C 0x8198 la pantalla, apagada
+C 0x8211 en 0xE882: los tramos siguen donde iba la demo
+C 0x8233 menos de 6...
+C 0x8235 ...si no, dos menos

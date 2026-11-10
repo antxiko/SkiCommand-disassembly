@@ -1,0 +1,64 @@
+# Puntos de entrada que el trazado NO puede deducir solo.
+#
+# Cada uno lleva escrito POR QUE hace falta.
+
+# El arranque: la cabecera da INIT en 0x8010.
+0x8010   # INIT
+
+# La interrupcion: 0x8456 escribe 0x8599 en 0xFDA0, la direccion del gancho H.TIMI
+# (0xFD9F, que la BIOS llama en cada interrupcion del VDP).
+0x8599   # la interrupcion del juego
+
+# Ejecutadas en openMSX (comun/casio/omsx_cobertura.tcl: jugando y en la demo) y no alcanzadas por el
+# trazado: el primer PC de cada tramo. Casi todas cuelgan de la interrupcion (H.TIMI) o de tablas de saltos.
+0x8569
+0x85A8
+0x8696
+0x86EF
+0x875D
+0x87DE
+0x8851
+0x8991
+0x8A05
+0x8A16
+0x8A24
+0x8A4F
+0x8AA2
+0x8AE4
+0x8B18
+0x8C24
+0x8E5B
+0x8ED8
+0x8F94
+0x9203
+0x9251
+0x9435
+0x9454
+0x9471
+0x96F3
+0x97B2
+0x98A0
+0x99A8
+0x99BD
+0xB9B0
+0xBA50
+0xBB64
+0xBC7E
+0xBCE0
+0xBD03
+
+# La tabla de ordenes de la musica (0xBBF6, la lee el jp (hl) de 0xBAD0 con el
+# indice cpl(A)*2 de un byte de orden 0xF2-0xFF): cada destino es una orden.
+# Los huecos 7 y 8 de la tabla valen 0x0000 (ordenes que no existen).
+0xBB19
+0xBB31
+0xBB25
+0xBB21
+0xBB32
+0xBB42
+0xBB64
+0xBB7F
+0xBBA1
+0xBB2B
+0xBBDE
+0xBBEA
