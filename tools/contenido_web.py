@@ -89,6 +89,11 @@ PAGINAS = [
      ("THE-ENEMIES.html", "LOS-ENEMIGOS.html", "The enemies", "Los enemigos",
       "the enemy skiers, the flying machine and what it drops, played in GIF",
       "los esquiadores enemigos, el aparato y lo que suelta, jugados en GIF"),
+     ("THE-SPRITES.html", "LOS-SPRITES.html", "The sprites", "Los sprites",
+      "the skier, the enemies, the flying machine and the course objects, put together from the ROM tables, and "
+      "the jump and the crash frame by frame",
+      "el esquiador, los enemigos, el aparato y los objetos de la pista, montados desde las tablas de la ROM, y el "
+      "salto y la ca&iacute;da cuadro a cuadro"),
      ("THE-SEQUENCES.html", "LAS-SECUENCIAS.html", "The sequences", "Las secuencias",
       "the title, the demo, PATTERN CLEAR, the bonus, the crash and GAME OVER",
       "el t&iacute;tulo, la demo, PATTERN CLEAR, el bonus, la ca&iacute;da y el GAME OVER"),
