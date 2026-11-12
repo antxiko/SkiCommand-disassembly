@@ -107,7 +107,11 @@ PAGINAS = [
       "the jump into the middle of the BIOS, the copies that run over, the font without an "
       "O, the orders that do not exist and the frames that run late",
       "el salto al medio de la BIOS, las copias que se pasan, la fuente sin O, las "
-      "&oacute;rdenes que no existen y los cuadros que llegan tarde")],
+      "&oacute;rdenes que no existen y los cuadros que llegan tarde"),
+     ("SECRETS-AND-BUGS.html", "SECRETOS-Y-FALLOS.html", "Secrets and bugs", "Secretos y fallos",
+      "what was searched for and found: no hidden keys, and a score that loses its first figure past 999,900",
+      "lo que se ha buscado y lo encontrado: ninguna tecla escondida, y unos puntos que pierden la primera cifra "
+      "pasados los 999.900")],
     [("UNDER-THE-HOOD.html", "POR-DENTRO.html", "Under the hood", "Por dentro",
       "rebuilding the ROM, the BIOS it uses, the interrupt, the RAM, the sound engine "
       "and the tools",

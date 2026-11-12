@@ -1388,7 +1388,7 @@ aparato_dibujo:		; Cuanto mas lejos, mas pequeno: cuatro tamanos y mas lenta
 	jr nc,aparato_guarda		;8af2
 	inc c			;8af4   ; ...la mas pequeno...
 	dec e			;8af5   ; ...y otro punto
-aparato_guarda:		; Guardal aparato
+aparato_guarda:		; Guarda el aparato
 	call guarda4		;8af6
 	jr aparato_sprites		;8af9
 aparato_sale:		; Un aparato nuevo: si la ronda la tiene, una vez de cada 16
@@ -2050,7 +2050,7 @@ disparo_enemigos_sig:		; El siguiente
 	pop bc			;8f54
 	djnz L_8F07		;8f55   ; el siguiente
 	ret			;8f57
-disparo_aparato:		; Contral aparato (0xE8DA): con el aparato tocado, el disparo a menos de 8 da una vida
+disparo_aparato:		; Contra el aparato (0xE8DA): con el aparato tocado, el disparo a menos de 8 da una vida
 	ld hl,0e8dah		;8f58   ; el aparato
 	push hl			;8f5b
 	call lee4		;8f5c
@@ -2062,7 +2062,7 @@ disparo_aparato:		; Contral aparato (0xE8DA): con el aparato tocado, el disparo 
 	or a			;8f66
 	jr z,disparo_aparato_tamano		;8f67
 	ld hl,(0e810h)		;8f69   ; el disparo...
-	ld a,e			;8f6c   ; ...contral aparato en Y...
+	ld a,e			;8f6c   ; ...contra el aparato en Y...
 	sub l			;8f6d
 	call absoluto		;8f6e
 	cp 008h		;8f71   ; ...a menos de 8...

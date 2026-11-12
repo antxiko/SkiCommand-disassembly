@@ -480,7 +480,7 @@ C 0x8ACF el dibujo, segun la Y
 C 0x8AD4 por arriba de la pantalla: se va...
 C 0x8AE0 ...con su sonido
 L 0x8AE4 aparato_dibujo               Cuanto mas lejos, mas pequeno: cuatro tamanos y mas lenta
-L 0x8AF6 aparato_guarda               Guardal aparato
+L 0x8AF6 aparato_guarda               Guarda el aparato
 L 0x8AFB aparato_sale                 Un aparato nuevo: si la ronda la tiene, una vez de cada 16
 C 0x8AFB esta ronda tiene aparato?
 C 0x8B06 el aparato sale por el centro (0x8BCF)...
@@ -610,7 +610,7 @@ C 0x8F3A el enemigo pasa a derribado (tipo 0)...
 C 0x8F3C ...con el bit 7 de su paso
 C 0x8F40 el disparo, fuera
 L 0x8F50 disparo_enemigos_sig      El siguiente
-L 0x8F58 disparo_aparato              Contral aparato (0xE8DA): con el aparato tocado, el disparo a menos de 8 da una vida
+L 0x8F58 disparo_aparato              Contra el aparato (0xE8DA): con el aparato tocado, el disparo a menos de 8 da una vida
 C 0x8F7C su sonido
 C 0x8F7F una vida mas
 C 0x8F83 el marcador
@@ -1534,7 +1534,7 @@ C 0x8F58 el aparato
 C 0x8F60 no hay?
 C 0x8F63 ya tocada?
 C 0x8F69 el disparo...
-C 0x8F6C ...contral aparato en Y...
+C 0x8F6C ...contra el aparato en Y...
 C 0x8F71 ...a menos de 8...
 C 0x8F74 ...y en X...
 C 0x8F79 ...a menos de 8
